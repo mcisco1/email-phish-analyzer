@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Report &mdash; {{ report.filename }}</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <nav class="topbar">
+        <a href="/" class="logo">&#9673; phishguard</a>
+        <div class="nav-links"><a href="/">Analyze</a><a href="/dashboard">Dashboard</a><a href="/history">History</a></div>
+    </nav>
+    <div class="container">
+        <div class="verdict-card" style="border-left: 4px solid {{ report.score.level_color }}">
+            <div class="verdict-top">
+                <div>
+                    <h1 class="verdict-title">{{ report.filename }}</h1>
+                    <p class="verdict-sub">{{ report.analyzed_at }} &middot; {{ report.report_id }}</p>
+                </div>
+                <div class="score-ring" style="--score-color: {{ report.score.level_color }}">
+                    <span class="score-num">{{ report.score.total }}</span><span class="score-max">/100</span>
+                </div>
+            </div>
+            <div class="verdict-level" style="color: {{ report.score.level_color }}">{{ report.score.level_label }}</div>
+        </div>
+
+        {# --- MITRE ATT&CK Mapping --- #}
+        {% if report.mitre_mappings %}
+        <div class="panel mitre-panel">
+            <h2 class="panel-title">MITRE ATT&amp;CK Mapping <span class="count-badge">{{ report.mitre_mappings | length }}</span></h2>
+            {% if report.attack_summary %}
+            <div class="kill-chain">
+                {% for phase in report.attack_summary.kill_chain_phases %}
+                <span class="kill-chain-phase">{{ phase }}</span>{% if not loop.last %}<span class="kill-chain-arrow">&rarr;</span>{% endif %}
+                {% endfor %}
+            </div>
+            {% endif %}
+            <table class="detail-table">
+                <thead><tr><th>Technique ID</th><th>Technique</th><th>Tactic</th><th>Finding</th></tr></thead>
+                <tbody>
+                {% for m in report.mitre_mappings %}
+                <tr>
+                    <td><a href="https://attack.mitre.org/techniques/{{ m.technique_id.replace('.', '/') }}/" class="link mitre-id" target="_blank" rel="noopener">{{ m.technique_id }}</a></td>
+                    <td>{{ m.technique }}</td>
+                    <td><span class="cat-tag">{{ m.tactic }}</span></td>
+                    <td>{{ m.finding[:70] }}{% if m.finding|length > 70 %}&hellip;{% endif %}</td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+
+        <div class="panel">
+            <h2 class="panel-title">Score Breakdown</h2>
+            {% if report.score.breakdown %}
+            <table class="detail-table">
+                <thead><tr><th>Finding</th><th>Category</th><th>Points</th></tr></thead>
+                <tbody>
+                {% for item in report.score.breakdown %}
+                <tr><td>{{ item.reason }}</td><td><span class="cat-tag">{{ item.category }}</span></td><td class="mono">+{{ item.points }}</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+            {% else %}<p class="muted">Nothing flagged.</p>{% endif %}
+        </div>
+
+        <div class="panel">
+            <h2 class="panel-title">Headers</h2>
+            <div class="detail-grid">
+                <div class="detail-row"><span class="detail-key">From</span><span class="detail-val">{% if report.headers.from_display %}{{ report.headers.from_display }} &lt;{{ report.headers.from_address }}&gt;{% else %}{{ report.headers.from_address }}{% endif %}</span></div>
+                <div class="detail-row"><span class="detail-key">Reply-To</span><span class="detail-val {% if report.headers.reply_to_mismatch %}text-danger{% endif %}">{{ report.headers.reply_to or '&mdash;' }}{% if report.headers.reply_to_mismatch %} <span class="badge badge-high">MISMATCH</span>{% endif %}</span></div>
+                <div class="detail-row"><span class="detail-key">Return-Path</span><span class="detail-val mono">{{ report.headers.return_path or '&mdash;' }}</span></div>
+                <div class="detail-row"><span class="detail-key">To</span><span class="detail-val">{{ report.headers.to_addresses | join(', ') }}</span></div>
+                <div class="detail-row"><span class="detail-key">Subject</span><span class="detail-val">{{ report.headers.subject }}</span></div>
+                <div class="detail-row"><span class="detail-key">Date</span><span class="detail-val">{{ report.headers.date }}</span></div>
+                <div class="detail-row"><span class="detail-key">Message-ID</span><span class="detail-val mono">{{ report.headers.message_id or '&mdash;' }}</span></div>
+                <div class="detail-row"><span class="detail-key">X-Mailer</span><span class="detail-val">{{ report.headers.x_mailer or '&mdash;' }}</span></div>
+                <div class="detail-row"><span class="detail-key">Origin IP</span><span class="detail-val mono">{{ report.headers.originating_ip or 'unknown' }}</span></div>
+            </div>
+
+            <h3 class="sub-title">Authentication</h3>
+            <div class="auth-row">
+                <div class="auth-badge {% if report.headers.spf_result == 'pass' %}auth-pass{% elif report.headers.spf_result in ['fail','softfail'] %}auth-fail{% else %}auth-none{% endif %}">SPF: {{ report.headers.spf_result }}</div>
+                <div class="auth-badge {% if report.headers.dkim_result == 'pass' %}auth-pass{% elif report.headers.dkim_result == 'fail' %}auth-fail{% else %}auth-none{% endif %}">DKIM: {{ report.headers.dkim_result }}</div>
+                <div class="auth-badge {% if report.headers.dmarc_result == 'pass' %}auth-pass{% elif report.headers.dmarc_result == 'fail' %}auth-fail{% else %}auth-none{% endif %}">DMARC: {{ report.headers.dmarc_result }}</div>
+            </div>
+
+            {% if report.headers.spf_dns_record %}
+            <h3 class="sub-title">SPF Record (live DNS)</h3>
+            <div class="dns-record">{{ report.headers.spf_dns_record }}</div>
+            {% endif %}
+            {% if report.headers.dmarc_dns_record %}
+            <h3 class="sub-title">DMARC Record (live DNS)</h3>
+            <div class="dns-record">{{ report.headers.dmarc_dns_record }}</div>
+            {% endif %}
+
+            {% if report.headers.anomalies %}
+            <h3 class="sub-title">Anomalies</h3>
+            <ul class="anomaly-list">{% for a in report.headers.anomalies %}<li>{{ a }}</li>{% endfor %}</ul>
+            {% endif %}
+            {% if report.headers.forged_headers %}
+            <h3 class="sub-title">Forgery Indicators</h3>
+            <ul class="anomaly-list danger">{% for f in report.headers.forged_headers %}<li>{{ f }}</li>{% endfor %}</ul>
+            {% endif %}
+
+            {% if report.headers.received_chain %}
+            <h3 class="sub-title">Received Chain</h3>
+            <div class="chain">
+                {% for hop in report.headers.received_chain %}
+                <div class="chain-hop">
+                    <span class="hop-num">{{ loop.index }}</span>
+                    <div class="hop-detail">
+                        {% if hop.from_host %}<span>from <strong>{{ hop.from_host }}</strong></span>{% endif %}
+                        {% if hop.by_host %}<span>by <strong>{{ hop.by_host }}</strong></span>{% endif %}
+                        {% if hop.ip %}<span class="mono">{{ hop.ip }}</span>{% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="panel">
+            <h2 class="panel-title">URLs <span class="count-badge">{{ report.urls | length }}</span></h2>
+            {% if report.urls %}
+            {% for url in report.urls %}
+            <div class="url-card {% if url.known_phishing or url.has_homoglyph %}url-danger{% elif url.threat_indicators %}url-warn{% endif %}">
+                <div class="url-main">{{ url.url[:120] }}{% if url.url|length > 120 %}&hellip;{% endif %}</div>
+                <div class="url-meta">
+                    <span>{{ url.domain }}</span>
+                    <span>{% if url.uses_https %}HTTPS{% else %}HTTP{% endif %}</span>
+                    <span>risk: {{ url.risk_score }}</span>
+                    {% if url.final_status_code %}<span>status: {{ url.final_status_code }}</span>{% endif %}
+                    {% if url.server %}<span>server: {{ url.server }}</span>{% endif %}
+                </div>
+                {% if url.page_title %}
+                <div class="detonation-meta">page title: "{{ url.page_title[:80] }}"</div>
+                {% endif %}
+                {% if url.redirect_chain | length > 1 %}
+                <div class="redirect-chain"><span class="chain-label">redirects:</span>
+                {% for hop in url.redirect_chain %}
+                    <span class="chain-url">{% if hop is mapping %}{{ hop.url[:60] }}{% if hop.url|length > 60 %}&hellip;{% endif %} ({{ hop.status }}){% else %}{{ hop[:60] }}{% endif %}</span>{% if not loop.last %}<span class="chain-arrow">&rarr;</span>{% endif %}
+                {% endfor %}</div>
+                {% endif %}
+                {% if url.final_url and url.final_url != url.url %}
+                <div class="detonation-meta">landed on: {{ url.final_url[:100] }}</div>
+                {% endif %}
+                {% if url.detonation_error %}
+                <div class="detonation-error">! {{ url.detonation_error }}</div>
+                {% endif %}
+                {% if url.threat_indicators %}<ul class="indicator-list">{% for t in url.threat_indicators %}<li>{{ t }}</li>{% endfor %}</ul>{% endif %}
+            </div>
+            {% endfor %}
+            {% else %}<p class="muted">No URLs in body.</p>{% endif %}
+        </div>
+
+        {# --- WHOIS Domain Intelligence --- #}
+        {% if report.whois %}
+        <div class="panel">
+            <h2 class="panel-title">Domain Intelligence (WHOIS) <span class="count-badge">{{ report.whois | length }}</span></h2>
+            {% for domain, info in report.whois.items() %}
+            <div class="url-card {% if info.get('is_new') %}url-danger{% endif %}">
+                <div class="url-main">{{ domain }}</div>
+                <div class="url-meta">
+                    {% if info.get('registrar') %}<span>Registrar: {{ info.registrar }}</span>{% endif %}
+                    {% if info.get('creation_date') %}<span>Created: {{ info.creation_date }}</span>{% endif %}
+                    {% if info.get('age_days') is not none %}<span>Age: {{ info.age_days }} days</span>{% endif %}
+                    {% if info.get('country') %}<span>Country: {{ info.country }}</span>{% endif %}
+                </div>
+                {% if info.get('warning') %}
+                <ul class="indicator-list"><li>{{ info.warning }}</li></ul>
+                {% endif %}
+                {% if info.get('error') %}
+                <div class="detonation-error">WHOIS error: {{ info.error }}</div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <div class="panel">
+            <h2 class="panel-title">Attachments <span class="count-badge">{{ report.attachments | length }}</span></h2>
+            {% if report.attachments %}
+            {% for att in report.attachments %}
+            <div class="att-card {% if att.malware_match or att.vt_detections %}att-danger{% elif att.threat_indicators %}att-warn{% endif %}">
+                <div class="att-header">
+                    <span class="att-name">{{ att.filename }}</span>
+                    <span class="att-size">{{ (att.size / 1024) | round(1) }} KB</span>
+                    {% if att.malware_match %}<span class="badge badge-critical">MALWARE</span>{% endif %}
+                    {% if att.vt_detections > 0 %}<span class="vt-badge vt-hit">VT: {{ att.vt_detections }}/{{ att.vt_total_engines }}</span>{% elif att.vt_permalink %}<span class="vt-badge">VT: clean</span>{% endif %}
+                </div>
+                <div class="att-meta">
+                    <span>{{ att.content_type }}</span>
+                    <span>entropy: {{ att.entropy }}</span>
+                    {% if att.actual_type != 'unknown' %}<span>detected: {{ att.actual_type }}</span>{% endif %}
+                </div>
+                <div class="hash-block">
+                    <div><span class="hash-label">MD5</span><span>{{ att.md5 }}</span></div>
+                    <div><span class="hash-label">SHA1</span><span>{{ att.sha1 }}</span></div>
+                    <div><span class="hash-label">SHA256</span><span>{{ att.sha256 }}</span></div>
+                </div>
+                {% if att.vt_permalink %}<div style="margin-top:5px"><a href="{{ att.vt_permalink }}" class="link" target="_blank" rel="noopener" style="font-size:11px">View on VirusTotal &rarr;</a></div>{% endif %}
+                {% if att.threat_indicators %}<ul class="indicator-list">{% for t in att.threat_indicators %}<li>{{ t }}</li>{% endfor %}</ul>{% endif %}
+            </div>
+            {% endfor %}
+            {% else %}<p class="muted">No attachments.</p>{% endif %}
+        </div>
+
+        {% if report.body.text_content %}
+        <div class="panel">
+            <h2 class="panel-title">Email Body Preview</h2>
+            <div class="dns-record" style="white-space: pre-wrap; max-height: 300px; overflow-y: auto;">{{ report.body.text_content[:2000] }}{% if report.body.text_content|length > 2000 %}&hellip;{% endif %}</div>
+            {% if report.body.javascript_detected or report.body.form_action_external or report.body.hidden_text %}
+            <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">
+                {% if report.body.javascript_detected %}<span class="badge badge-critical">JAVASCRIPT</span>{% endif %}
+                {% if report.body.form_action_external %}<span class="badge badge-critical">EXTERNAL FORM</span>{% endif %}
+                {% if report.body.hidden_text %}<span class="badge badge-high">HIDDEN TEXT</span>{% endif %}
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <div class="panel">
+            <h2 class="panel-title">IOCs</h2>
+            <div class="ioc-grid">
+                <div class="ioc-section"><h3 class="ioc-label">IP Addresses</h3>{% for ip in report.iocs.ip_addresses %}<div class="ioc-item">{{ ip }}</div>{% endfor %}{% if not report.iocs.ip_addresses %}<span class="muted">&mdash;</span>{% endif %}</div>
+                <div class="ioc-section"><h3 class="ioc-label">Domains</h3>{% for d in report.iocs.domains %}<div class="ioc-item">{{ d }}</div>{% endfor %}{% if not report.iocs.domains %}<span class="muted">&mdash;</span>{% endif %}</div>
+                <div class="ioc-section"><h3 class="ioc-label">Emails</h3>{% for e in report.iocs.email_addresses %}<div class="ioc-item">{{ e }}</div>{% endfor %}{% if not report.iocs.email_addresses %}<span class="muted">&mdash;</span>{% endif %}</div>
+                <div class="ioc-section"><h3 class="ioc-label">URLs</h3>{% for u in report.iocs.urls %}<div class="ioc-item">{{ u[:80] }}{% if u|length > 80 %}&hellip;{% endif %}</div>{% endfor %}{% if not report.iocs.urls %}<span class="muted">&mdash;</span>{% endif %}</div>
+            </div>
+            {% if report.iocs.file_hashes %}
+            <h3 class="ioc-label" style="margin-top:14px">File Hashes</h3>
+            {% for fh in report.iocs.file_hashes %}<div class="ioc-item"><strong>{{ fh.filename }}</strong> &mdash; md5:<span class="mono">{{ fh.md5 }}</span></div>{% endfor %}
+            {% endif %}
+            <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">
+                <a href="/api/iocs/{{ report.report_id }}" class="btn-export" target="_blank">Export IOCs (JSON)</a>
+                <a href="/api/stix/{{ report.report_id }}" class="btn-export" target="_blank">Export STIX 2.1</a>
+            </div>
+        </div>
+
+        <div class="footer-actions">
+            <a href="/" class="btn-back">&larr; back</a>
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                <a href="/report/{{ report.report_id }}/pdf" class="btn-export">Download PDF</a>
+                <a href="/api/report/{{ report.report_id }}" class="btn-export" target="_blank">Full Report JSON</a>
+                <a href="/api/mitre/{{ report.report_id }}" class="btn-export" target="_blank">ATT&amp;CK JSON</a>
+                <form action="/delete/{{ report.report_id }}" method="POST" style="display:inline" onsubmit="return confirm('Delete this analysis?')">
+                    <button type="submit" class="btn-delete">Delete</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

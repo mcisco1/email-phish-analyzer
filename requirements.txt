@@ -1,0 +1,8 @@
+flask==3.1.0
+markupsafe==3.0.2
+requests==2.32.3
+dnspython==2.7.0
+gunicorn==23.0.0
+flask-limiter==3.8.0
+python-whois==0.9.4
+fpdf2==2.8.2

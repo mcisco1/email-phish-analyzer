@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard — PhishGuard</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+</head>
+<body>
+    <nav class="topbar">
+        <a href="/" class="logo">&#9673; phishguard</a>
+        <div class="nav-links">
+            <a href="/">Analyze</a>
+            <a href="/dashboard" class="active">Dashboard</a>
+            <a href="/history">History</a>
+        </div>
+    </nav>
+    <div class="container">
+        <h1 style="margin-bottom:20px">Threat Dashboard</h1>
+
+        <div class="stats-bar">
+            <div class="stat-mini"><span class="stat-num">{{ stats.total }}</span><span class="stat-lbl">Total Analyzed</span></div>
+            <div class="stat-mini critical"><span class="stat-num">{{ stats.by_level.get('critical', 0) }}</span><span class="stat-lbl">Critical</span></div>
+            <div class="stat-mini high"><span class="stat-num">{{ stats.by_level.get('high', 0) }}</span><span class="stat-lbl">High</span></div>
+            <div class="stat-mini medium"><span class="stat-num">{{ stats.by_level.get('medium', 0) }}</span><span class="stat-lbl">Medium</span></div>
+            <div class="stat-mini low"><span class="stat-num">{{ stats.by_level.get('low', 0) + stats.by_level.get('clean', 0) }}</span><span class="stat-lbl">Low/Clean</span></div>
+        </div>
+
+        <div class="dashboard-grid">
+            <div class="panel chart-panel">
+                <h2 class="panel-title">Threat Distribution</h2>
+                <div class="chart-container"><canvas id="threatPieChart"></canvas></div>
+            </div>
+            <div class="panel chart-panel">
+                <h2 class="panel-title">30-Day Trend</h2>
+                <div class="chart-container"><canvas id="trendChart"></canvas></div>
+            </div>
+        </div>
+
+        <div class="panel" style="margin-top:14px">
+            <h2 class="panel-title">Key Metrics</h2>
+            <div class="metrics-row">
+                <div class="metric-card">
+                    <span class="metric-value">{{ stats.avg_score }}</span>
+                    <span class="metric-label">Avg Threat Score</span>
+                </div>
+                <div class="metric-card">
+                    <span class="metric-value">{{ ((stats.by_level.get('critical', 0) + stats.by_level.get('high', 0)) / stats.total * 100) | round(1) if stats.total > 0 else 0 }}%</span>
+                    <span class="metric-label">High/Critical Rate</span>
+                </div>
+                <div class="metric-card">
+                    <span class="metric-value">{{ stats.total }}</span>
+                    <span class="metric-label">Emails Scanned</span>
+                </div>
+                <div class="metric-card">
+                    <span class="metric-value {% if vt %}text-active{% else %}text-inactive{% endif %}">{{ "ON" if vt else "OFF" }}</span>
+                    <span class="metric-label">VirusTotal</span>
+                </div>
+            </div>
+        </div>
+
+        {% if recent %}
+        <div class="panel" style="margin-top:14px">
+            <h2 class="panel-title">Recent Analyses</h2>
+            <table class="results-table">
+                <thead><tr><th>File</th><th>From</th><th>Subject</th><th>Threat</th><th>Score</th><th></th></tr></thead>
+                <tbody>
+                {% for r in recent[:10] %}
+                <tr>
+                    <td>{{ r.filename }}</td>
+                    <td class="mono">{{ r.from_address }}</td>
+                    <td>{{ r.subject[:50] }}{% if r.subject|length > 50 %}&hellip;{% endif %}</td>
+                    <td><span class="badge badge-{{ r.threat_level }}">{{ r.threat_level }}</span></td>
+                    <td>{{ r.threat_score }}/100</td>
+                    <td><a href="/report/{{ r.id }}" class="link">View</a></td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+
+        <div class="footer-actions">
+            <a href="/api/export/csv" class="btn-export">Export All as CSV</a>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        var levelData = {{ stats.by_level | tojson }};
+        var trendData = {{ trend | tojson }};
+
+        // --- Threat Distribution Pie Chart ---
+        var pieCtx = document.getElementById('threatPieChart').getContext('2d');
+        new Chart(pieCtx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Critical', 'High', 'Medium', 'Low', 'Clean'],
+                datasets: [{
+                    data: [
+                        levelData.critical || 0,
+                        levelData.high || 0,
+                        levelData.medium || 0,
+                        levelData.low || 0,
+                        levelData.clean || 0
+                    ],
+                    backgroundColor: ['#f85149', '#d29922', '#e3b341', '#3fb950', '#2ea043'],
+                    borderColor: '#0d1017',
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'bottom', labels: { color: '#c9d1d9', font: { size: 11 } } }
+                }
+            }
+        });
+
+        // --- 30-Day Trend Line Chart ---
+        var dayMap = {};
+        trendData.forEach(function(row) {
+            if (!dayMap[row.day]) dayMap[row.day] = {critical:0, high:0, medium:0, low:0, clean:0};
+            dayMap[row.day][row.threat_level] = row.cnt;
+        });
+        var days = Object.keys(dayMap).sort();
+        var critData = days.map(function(d) { return dayMap[d].critical || 0; });
+        var highData = days.map(function(d) { return dayMap[d].high || 0; });
+        var medData = days.map(function(d) { return dayMap[d].medium || 0; });
+        var lowCleanData = days.map(function(d) { return (dayMap[d].low || 0) + (dayMap[d].clean || 0); });
+
+        var trendCtx = document.getElementById('trendChart').getContext('2d');
+        new Chart(trendCtx, {
+            type: 'bar',
+            data: {
+                labels: days,
+                datasets: [
+                    { label: 'Critical', data: critData, backgroundColor: '#f85149' },
+                    { label: 'High', data: highData, backgroundColor: '#d29922' },
+                    { label: 'Medium', data: medData, backgroundColor: '#e3b341' },
+                    { label: 'Low/Clean', data: lowCleanData, backgroundColor: '#3fb950' }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: { stacked: true, ticks: { color: '#6e7681', maxRotation: 45 }, grid: { color: '#1c2333' } },
+                    y: { stacked: true, beginAtZero: true, ticks: { color: '#6e7681' }, grid: { color: '#1c2333' } }
+                },
+                plugins: {
+                    legend: { position: 'bottom', labels: { color: '#c9d1d9', font: { size: 11 } } }
+                }
+            }
+        });
+    })();
+    </script>
+</body>
+</html>

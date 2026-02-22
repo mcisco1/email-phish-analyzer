@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PhishGuard &mdash; Phishing Email Analyzer</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <nav class="topbar">
+        <a href="/" class="logo">&#9673; phishguard</a>
+        <div class="nav-links">
+            <a href="/" class="active">Analyze</a>
+            <a href="/dashboard">Dashboard</a>
+            <a href="/history">History</a>
+        </div>
+    </nav>
+    <div class="container">
+        {% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
+        <div class="hero">
+            <h1>Phishing Email Analyzer</h1>
+            <p>Upload raw .eml files for automated threat analysis &mdash; header forensics, URL detonation, attachment sandboxing, MITRE ATT&amp;CK mapping, and IOC extraction.</p>
+        </div>
+        <div class="upload-card">
+            <form action="/analyze" method="POST" enctype="multipart/form-data" id="upload-form">
+                <div class="upload-zone" id="drop-zone">
+                    <div class="upload-icon">&#128231;</div>
+                    <p class="upload-text">Drag &amp; drop .eml files here</p>
+                    <p class="upload-sub">or click to browse &middot; supports multiple files</p>
+                    <input type="file" name="eml_file" id="eml-input" accept=".eml" required multiple>
+                </div>
+                <div class="file-info" id="file-info" style="display:none">
+                    <span id="file-name"></span>
+                    <span id="file-size"></span>
+                </div>
+                <button type="submit" class="btn-analyze" id="btn-submit" disabled>Analyze Email</button>
+            </form>
+        </div>
+        {% if stats and stats.total > 0 %}
+        <div class="stats-bar">
+            <div class="stat-mini"><span class="stat-num">{{ stats.total }}</span><span class="stat-lbl">Analyzed</span></div>
+            <div class="stat-mini critical"><span class="stat-num">{{ stats.by_level.get('critical', 0) }}</span><span class="stat-lbl">Critical</span></div>
+            <div class="stat-mini high"><span class="stat-num">{{ stats.by_level.get('high', 0) }}</span><span class="stat-lbl">High</span></div>
+            <div class="stat-mini medium"><span class="stat-num">{{ stats.by_level.get('medium', 0) }}</span><span class="stat-lbl">Medium</span></div>
+            <div class="stat-mini low"><span class="stat-num">{{ stats.by_level.get('low', 0) + stats.by_level.get('clean', 0) }}</span><span class="stat-lbl">Low/Clean</span></div>
+        </div>
+        {% endif %}
+        {% if recent %}
+        <div class="section">
+            <h2>Recent Analyses</h2>
+            <table class="results-table">
+                <thead><tr><th>File</th><th>From</th><th>Subject</th><th>Threat</th><th>Score</th><th></th></tr></thead>
+                <tbody>
+                {% for r in recent %}
+                <tr>
+                    <td>{{ r.filename }}</td><td>{{ r.from_address }}</td>
+                    <td>{{ r.subject[:50] }}{% if r.subject|length > 50 %}&hellip;{% endif %}</td>
+                    <td><span class="badge badge-{{ r.threat_level }}">{{ r.threat_level }}</span></td>
+                    <td>{{ r.threat_score }}/100</td>
+                    <td><a href="/report/{{ r.id }}" class="link">View</a></td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+    </div>
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

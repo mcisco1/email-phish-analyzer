@@ -1,0 +1,35 @@
+From: John Smith <john.smith@example.com>
+To: jane.doe@company.com
+Subject: Q4 Report Summary
+Date: Wed, 15 Jan 2025 10:30:00 -0500
+Message-ID: <abc123@mail.example.com>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="boundary123"
+Authentication-Results: mx.company.com; spf=pass smtp.mailfrom=example.com; dkim=pass header.d=example.com; dmarc=pass header.from=example.com
+Received: from mail.example.com (mail.example.com [93.184.216.34]) by mx.company.com with ESMTPS; Wed, 15 Jan 2025 10:30:05 -0500
+Received: from [10.0.1.50] by mail.example.com with SMTP; Wed, 15 Jan 2025 10:30:02 -0500
+X-Mailer: Thunderbird 115.0
+
+--boundary123
+Content-Type: text/plain; charset="utf-8"
+
+Hi Jane,
+
+Here is the Q4 report summary we discussed. Let me know if you need any clarification on the numbers.
+
+Best regards,
+John Smith
+Senior Analyst
+
+--boundary123
+Content-Type: text/html; charset="utf-8"
+
+<html>
+<body>
+<p>Hi Jane,</p>
+<p>Here is the Q4 report summary we discussed. Let me know if you need any clarification on the numbers.</p>
+<p>Best regards,<br>John Smith<br>Senior Analyst</p>
+</body>
+</html>
+
+--boundary123--

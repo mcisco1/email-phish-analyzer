@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analysis History &mdash; PhishGuard</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <nav class="topbar">
+        <a href="/" class="logo">&#9673; phishguard</a>
+        <div class="nav-links"><a href="/">Analyze</a><a href="/dashboard">Dashboard</a><a href="/history" class="active">History</a></div>
+    </nav>
+    <div class="container">
+        <h1>Analysis History</h1>
+        {% if stats %}
+        <div class="stats-bar">
+            <div class="stat-mini"><span class="stat-num">{{ stats.total }}</span><span class="stat-lbl">Total</span></div>
+            <div class="stat-mini critical"><span class="stat-num">{{ stats.by_level.get('critical', 0) }}</span><span class="stat-lbl">Critical</span></div>
+            <div class="stat-mini high"><span class="stat-num">{{ stats.by_level.get('high', 0) }}</span><span class="stat-lbl">High</span></div>
+            <div class="stat-mini medium"><span class="stat-num">{{ stats.by_level.get('medium', 0) }}</span><span class="stat-lbl">Medium</span></div>
+            <div class="stat-mini low"><span class="stat-num">{{ stats.by_level.get('low', 0) + stats.by_level.get('clean', 0) }}</span><span class="stat-lbl">Low/Clean</span></div>
+        </div>
+        {% endif %}
+
+        <div class="search-bar">
+            <form action="/history" method="GET">
+                <input type="text" name="q" placeholder="Search by filename, sender, or subject..." value="{{ query or '' }}" class="search-input">
+                <button type="submit" class="btn-search">Search</button>
+                {% if query %}<a href="/history" class="btn-back" style="margin-left:8px">Clear</a>{% endif %}
+            </form>
+        </div>
+
+        {% if analyses %}
+        <table class="results-table">
+            <thead><tr><th>File</th><th>From</th><th>Subject</th><th>Threat Level</th><th>Score</th><th>Date</th><th></th></tr></thead>
+            <tbody>
+            {% for a in analyses %}
+            <tr>
+                <td>{{ a.filename }}</td>
+                <td class="mono">{{ a.from_address }}</td>
+                <td>{{ a.subject[:60] }}{% if a.subject|length > 60 %}&hellip;{% endif %}</td>
+                <td><span class="badge badge-{{ a.threat_level }}">{{ a.threat_level }}</span></td>
+                <td>{{ a.threat_score }}/100</td>
+                <td class="mono" style="font-size:11px">{{ a.analyzed_at_display }}</td>
+                <td style="display:flex; gap:6px; align-items:center">
+                    <a href="/report/{{ a.id }}" class="link">View</a>
+                    <form action="/delete/{{ a.id }}" method="POST" style="display:inline" onsubmit="return confirm('Delete this analysis?')">
+                        <button type="submit" class="btn-delete-sm">x</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        <div class="footer-actions" style="margin-top:14px">
+            <span class="muted">{{ analyses | length }} results</span>
+            <a href="/api/export/csv" class="btn-export">Export CSV</a>
+        </div>
+        {% else %}<p class="muted" style="margin-top:24px">{% if query %}No results for "{{ query }}".{% else %}No analyses yet. <a href="/" class="link">Upload an email</a> to get started.{% endif %}</p>{% endif %}
+    </div>
+</body>
+</html>

