@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Notifications &mdash; PhishGuard</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <nav class="topbar">
+        <a href="/" class="logo">&#9673; phishguard</a>
+        <div class="nav-links">
+            <a href="/">Analyze</a>
+            <a href="/dashboard">Dashboard</a>
+            <a href="/history">History</a>
+            <a href="/notifications" class="active nav-notif">Alerts{% if unread_count %}<span class="notif-badge">{{ unread_count }}</span>{% endif %}</a>
+            <a href="/team">Team</a>
+            {% if current_user.is_admin() %}
+            <a href="/admin/users">Users</a>
+            <a href="/admin/audit">Audit Log</a>
+            {% endif %}
+            <span class="nav-user">{{ current_user.username }}</span>
+            <a href="/logout">Logout</a>
+        </div>
+    </nav>
+    <div class="container" style="max-width: 800px;">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        {% for category, message in messages %}
+        <div class="alert alert-{{ category }}">{{ message }}</div>
+        {% endfor %}
+        {% endif %}
+        {% endwith %}
+
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h1>Alerts &amp; Notifications</h1>
+            {% if notifications %}
+            <form action="/notifications/mark-read" method="POST" style="display: inline;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn-export" style="font-size: 11px;">Mark All Read</button>
+            </form>
+            {% endif %}
+        </div>
+
+        <!-- Notification List -->
+        <div class="panel" style="margin-bottom: 20px;">
+            <h2 class="panel-title">Recent Notifications</h2>
+            {% if notifications %}
+            <div class="notif-list">
+                {% for n in notifications %}
+                <div class="notif-item {% if not n.is_read %}notif-unread{% endif %}">
+                    <div class="notif-icon">
+                        {% if n.category == 'critical' %}&#128680;{% elif n.category == 'warning' %}&#9888;{% elif n.category == 'summary' %}&#128202;{% else %}&#128276;{% endif %}
+                    </div>
+                    <div class="notif-content">
+                        <div class="notif-title">{{ n.title }}</div>
+                        <div class="notif-message">{{ n.message }}</div>
+                        <div class="notif-time">{{ n.created_at.strftime('%Y-%m-%d %H:%M') if n.created_at else '' }}</div>
+                    </div>
+                    {% if n.link %}
+                    <a href="{{ n.link }}" class="btn-export" style="font-size: 10px; white-space: nowrap;">View</a>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="muted">No notifications yet. You'll be alerted when analyses detect threats.</p>
+            {% endif %}
+        </div>
+
+        <!-- Notification Preferences -->
+        <div class="panel">
+            <h2 class="panel-title">Alert Preferences</h2>
+            <form action="/notifications/preferences" method="POST">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                <div class="prefs-section">
+                    <h3 class="sub-title">Email Alerts</h3>
+                    <p class="muted" style="font-size: 12px; margin-bottom: 12px;">Get email notifications when an analysis detects threats.</p>
+                    <label class="pref-toggle">
+                        <input type="checkbox" name="email_on_critical" {% if prefs.email_on_critical %}checked{% endif %}>
+                        <span>Critical threats (score 70+)</span>
+                    </label>
+                    <label class="pref-toggle">
+                        <input type="checkbox" name="email_on_high" {% if prefs.email_on_high %}checked{% endif %}>
+                        <span>High threats (score 50-69)</span>
+                    </label>
+                    <label class="pref-toggle">
+                        <input type="checkbox" name="email_on_medium" {% if prefs.email_on_medium %}checked{% endif %}>
+                        <span>Medium threats (score 30-49)</span>
+                    </label>
+                    <label class="pref-toggle">
+                        <input type="checkbox" name="email_weekly_summary" {% if prefs.email_weekly_summary %}checked{% endif %}>
+                        <span>Weekly summary report</span>
+                    </label>
+                </div>
+
+                <div class="prefs-section" style="margin-top: 20px;">
+                    <h3 class="sub-title">Slack Alerts</h3>
+                    <p class="muted" style="font-size: 12px; margin-bottom: 12px;">Send alerts to a Slack channel via webhook.</p>
+                    <div class="form-group" style="margin-bottom: 12px;">
+                        <label for="slack_webhook_url">Slack Webhook URL</label>
+                        <input type="url" id="slack_webhook_url" name="slack_webhook_url" value="{{ prefs.slack_webhook_url or '' }}" class="form-input" placeholder="https://hooks.slack.com/services/...">
+                    </div>
+                    <label class="pref-toggle">
+                        <input type="checkbox" name="slack_on_critical" {% if prefs.slack_on_critical %}checked{% endif %}>
+                        <span>Critical threats</span>
+                    </label>
+                    <label class="pref-toggle">
+                        <input type="checkbox" name="slack_on_high" {% if prefs.slack_on_high %}checked{% endif %}>
+                        <span>High threats</span>
+                    </label>
+                </div>
+
+                <div class="prefs-section" style="margin-top: 20px;">
+                    <h3 class="sub-title">Alert Threshold</h3>
+                    <p class="muted" style="font-size: 12px; margin-bottom: 12px;">Minimum threat score to trigger an alert.</p>
+                    <div class="form-group">
+                        <label for="alert_threshold">Minimum Score (0-100)</label>
+                        <input type="number" id="alert_threshold" name="alert_threshold" value="{{ prefs.alert_threshold }}" min="0" max="100" class="form-input" style="width: 120px;">
+                    </div>
+                </div>
+
+                <button type="submit" class="btn-analyze" style="margin-top: 20px; max-width: 240px;">Save Preferences</button>
+            </form>
+        </div>
+    </div>
+</body>
+</html>

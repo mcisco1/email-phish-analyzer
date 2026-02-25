@@ -512,7 +512,7 @@ class TestMITREMapper(unittest.TestCase):
     def test_urgency_maps_to_t1598(self):
         breakdown = [{"reason": "Urgency language (3 indicators): urgent, act now, verify", "points": 8, "category": "body"}]
         mappings = map_findings_to_mitre(breakdown)
-        self.assertTrue(any(m["technique_id"] == "T1598" for m in mappings))
+        self.assertTrue(any(m["technique_id"] == "T1598.003" for m in mappings))
 
     def test_javascript_maps_to_t1059(self):
         breakdown = [{"reason": "JavaScript in HTML body", "points": 8, "category": "body"}]
@@ -527,7 +527,7 @@ class TestMITREMapper(unittest.TestCase):
     def test_hidden_text_maps_to_obfuscation(self):
         breakdown = [{"reason": "Hidden text in HTML", "points": 5, "category": "body"}]
         mappings = map_findings_to_mitre(breakdown)
-        self.assertTrue(any(m["technique_id"] == "T1027" for m in mappings))
+        self.assertTrue(any(m["technique_id"] == "T1027.006" for m in mappings))
 
     def test_dedup_techniques(self):
         """Multiple findings for the same technique should be deduplicated."""

@@ -1,0 +1,146 @@
+/* PhishGuard Extension — Overlay Styles */
+
+#phishguard-overlay {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 999999;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.pg-overlay-card {
+  width: 360px;
+  background: #0d1017;
+  border: 1px solid #1c2333;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  color: #c9d1d9;
+}
+
+.pg-overlay-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 16px;
+}
+
+.pg-overlay-title {
+  font-weight: 600;
+  font-size: 13px;
+  color: #fff;
+}
+
+.pg-overlay-close {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 20px;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0 4px;
+}
+
+.pg-overlay-close:hover {
+  color: #fff;
+}
+
+.pg-overlay-body {
+  padding: 16px;
+}
+
+.pg-score-display {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.pg-score-ring {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: 3px solid;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.pg-score-num {
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1;
+  font-family: 'Courier New', monospace;
+}
+
+.pg-score-max {
+  font-size: 9px;
+  color: #6e7681;
+  font-family: 'Courier New', monospace;
+}
+
+.pg-threat-level {
+  font-size: 14px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.pg-threat-label {
+  font-size: 11px;
+  color: #6e7681;
+  margin-top: 2px;
+}
+
+.pg-findings {
+  border-top: 1px solid #1c2333;
+  padding-top: 12px;
+}
+
+.pg-findings-title {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #6e7681;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.pg-finding-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 4px 0;
+  border-bottom: 1px solid #151a26;
+  font-size: 12px;
+}
+
+.pg-finding-pts {
+  color: #f97316;
+  font-weight: 600;
+  font-family: 'Courier New', monospace;
+  font-size: 11px;
+  flex-shrink: 0;
+  width: 28px;
+}
+
+.pg-view-report {
+  display: block;
+  text-align: center;
+  margin-top: 14px;
+  padding: 8px 16px;
+  background: #58a6ff;
+  color: #000;
+  text-decoration: none;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 12px;
+  transition: opacity 0.15s;
+}
+
+.pg-view-report:hover {
+  opacity: 0.85;
+}

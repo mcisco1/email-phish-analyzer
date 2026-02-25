@@ -9,7 +9,19 @@
 <body>
     <nav class="topbar">
         <a href="/" class="logo">&#9673; phishguard</a>
-        <div class="nav-links"><a href="/">Analyze</a><a href="/dashboard">Dashboard</a><a href="/history" class="active">History</a></div>
+        <div class="nav-links">
+            <a href="/">Analyze</a>
+            <a href="/dashboard">Dashboard</a>
+            <a href="/history" class="active">History</a>
+            <a href="/notifications" class="nav-notif">Alerts{% if unread_count %}<span class="notif-badge">{{ unread_count }}</span>{% endif %}</a>
+            <a href="/team">Team</a>
+            {% if current_user.is_admin() %}
+            <a href="/admin/users">Users</a>
+            <a href="/admin/audit">Audit Log</a>
+            {% endif %}
+            <span class="nav-user">{{ current_user.username }}</span>
+            <a href="/logout">Logout</a>
+        </div>
     </nav>
     <div class="container">
         <h1>Analysis History</h1>
@@ -33,7 +45,7 @@
 
         {% if analyses %}
         <table class="results-table">
-            <thead><tr><th>File</th><th>From</th><th>Subject</th><th>Threat Level</th><th>Score</th><th>Date</th><th></th></tr></thead>
+            <thead><tr><th>File</th><th>From</th><th>Subject</th><th>Threat Level</th><th>Score</th><th>Status</th><th>Date</th><th></th></tr></thead>
             <tbody>
             {% for a in analyses %}
             <tr>
@@ -42,12 +54,21 @@
                 <td>{{ a.subject[:60] }}{% if a.subject|length > 60 %}&hellip;{% endif %}</td>
                 <td><span class="badge badge-{{ a.threat_level }}">{{ a.threat_level }}</span></td>
                 <td>{{ a.threat_score }}/100</td>
+                <td>
+                    {% if a.status == 'pending' %}<span class="badge badge-medium">queued</span>
+                    {% elif a.status == 'processing' %}<span class="badge badge-medium">analyzing</span>
+                    {% elif a.status == 'failed' %}<span class="badge badge-critical">failed</span>
+                    {% else %}<span class="muted">done</span>{% endif %}
+                </td>
                 <td class="mono" style="font-size:11px">{{ a.analyzed_at_display }}</td>
                 <td style="display:flex; gap:6px; align-items:center">
                     <a href="/report/{{ a.id }}" class="link">View</a>
+                    {% if current_user.is_analyst() %}
                     <form action="/delete/{{ a.id }}" method="POST" style="display:inline" onsubmit="return confirm('Delete this analysis?')">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <button type="submit" class="btn-delete-sm">x</button>
                     </form>
+                    {% endif %}
                 </td>
             </tr>
             {% endfor %}

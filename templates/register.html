@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Register &mdash; PhishGuard</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <nav class="topbar">
+        <a href="/" class="logo">&#9673; phishguard</a>
+    </nav>
+    <div class="container auth-container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        {% for category, message in messages %}
+        <div class="alert alert-{{ category }}">{{ message }}</div>
+        {% endfor %}
+        {% endif %}
+        {% endwith %}
+
+        <div class="auth-card">
+            <h1 class="auth-title">Create Account</h1>
+            <p class="auth-sub">Register for PhishGuard access</p>
+
+            <form action="/register" method="POST" class="auth-form">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="form-group">
+                    <label for="email">Email</label>
+                    <input type="email" id="email" name="email" required autocomplete="email" class="form-input" placeholder="you@example.com">
+                </div>
+                <div class="form-group">
+                    <label for="username">Username</label>
+                    <input type="text" id="username" name="username" required autocomplete="username" class="form-input" placeholder="username" minlength="3" maxlength="150">
+                </div>
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" name="password" required autocomplete="new-password" class="form-input" placeholder="Minimum 8 characters" minlength="8">
+                </div>
+                <div class="form-group">
+                    <label for="confirm_password">Confirm Password</label>
+                    <input type="password" id="confirm_password" name="confirm_password" required autocomplete="new-password" class="form-input" placeholder="Confirm password">
+                </div>
+                <button type="submit" class="btn-analyze">Create Account</button>
+            </form>
+
+            <p class="auth-footer">Already have an account? <a href="/login" class="link">Sign in</a></p>
+        </div>
+    </div>
+</body>
+</html>

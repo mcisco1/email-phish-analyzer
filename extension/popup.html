@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      width: 360px;
+      background: #0d1017;
+      color: #c9d1d9;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .header {
+      background: #151a26;
+      padding: 14px 16px;
+      border-bottom: 1px solid #1c2333;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .header .logo {
+      color: #58a6ff;
+      font-weight: 700;
+      font-size: 14px;
+      font-family: 'Courier New', monospace;
+    }
+    .header .version {
+      color: #6e7681;
+      font-size: 10px;
+    }
+    .content { padding: 16px; }
+
+    .section { margin-bottom: 16px; }
+    .section-title {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #6e7681;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+
+    .form-group { margin-bottom: 10px; }
+    .form-group label {
+      display: block;
+      font-size: 11px;
+      color: #6e7681;
+      margin-bottom: 4px;
+      font-weight: 500;
+    }
+    .form-input {
+      width: 100%;
+      padding: 8px 10px;
+      background: #07080d;
+      border: 1px solid #1c2333;
+      border-radius: 4px;
+      color: #c9d1d9;
+      font-size: 12px;
+      font-family: 'Courier New', monospace;
+      outline: none;
+    }
+    .form-input:focus { border-color: #58a6ff; }
+    .form-input::placeholder { color: #3d4450; }
+
+    .btn {
+      display: block;
+      width: 100%;
+      padding: 9px;
+      border: none;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s;
+      font-family: inherit;
+    }
+    .btn:hover { opacity: 0.85; }
+    .btn-primary { background: #58a6ff; color: #000; }
+    .btn-secondary {
+      background: #151a26;
+      color: #58a6ff;
+      border: 1px solid #1c2333;
+      margin-top: 8px;
+    }
+
+    .status {
+      padding: 8px 10px;
+      border-radius: 4px;
+      font-size: 11px;
+      margin-top: 10px;
+      display: none;
+    }
+    .status.success { display: block; background: rgba(46,160,67,.1); color: #2ea043; border: 1px solid rgba(46,160,67,.25); }
+    .status.error { display: block; background: rgba(248,81,73,.1); color: #f85149; border: 1px solid rgba(248,81,73,.25); }
+    .status.loading { display: block; background: rgba(88,166,255,.08); color: #58a6ff; border: 1px solid rgba(88,166,255,.2); }
+
+    .upload-zone {
+      border: 1px dashed #1c2333;
+      border-radius: 6px;
+      padding: 20px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.2s;
+      position: relative;
+    }
+    .upload-zone:hover { border-color: #58a6ff; }
+    .upload-zone input {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+    }
+    .upload-icon { font-size: 24px; margin-bottom: 6px; }
+    .upload-text { font-size: 12px; color: #6e7681; }
+
+    .result-card {
+      background: #151a26;
+      border: 1px solid #1c2333;
+      border-radius: 6px;
+      padding: 12px;
+      display: none;
+    }
+    .result-score {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 8px;
+    }
+    .result-ring {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      border: 3px solid;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .result-num {
+      font-size: 16px;
+      font-weight: 700;
+      font-family: 'Courier New', monospace;
+    }
+    .result-max { font-size: 8px; color: #6e7681; }
+    .result-level { font-weight: 700; text-transform: uppercase; }
+    .result-link {
+      display: block;
+      text-align: center;
+      margin-top: 10px;
+      padding: 7px;
+      background: #58a6ff;
+      color: #000;
+      text-decoration: none;
+      border-radius: 4px;
+      font-weight: 600;
+      font-size: 11px;
+    }
+
+    .divider { border-top: 1px solid #1c2333; margin: 14px 0; }
+
+    .help-text {
+      font-size: 11px;
+      color: #6e7681;
+      line-height: 1.6;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <span class="logo">PhishGuard</span>
+    <span class="version">v1.0</span>
+  </div>
+  <div class="content">
+    <!-- Quick Analyze -->
+    <div class="section">
+      <div class="section-title">Quick Analyze</div>
+      <div class="upload-zone" id="uploadZone">
+        <input type="file" id="fileInput" accept=".eml">
+        <div class="upload-icon">&#128231;</div>
+        <div class="upload-text">Drop .eml file or click to upload</div>
+      </div>
+      <button class="btn btn-secondary" id="analyzePageBtn">Analyze Current Email</button>
+    </div>
+
+    <div id="statusMsg" class="status"></div>
+    <div id="resultCard" class="result-card"></div>
+
+    <div class="divider"></div>
+
+    <!-- Settings -->
+    <div class="section">
+      <div class="section-title">Server Settings</div>
+      <div class="form-group">
+        <label>PhishGuard Server URL</label>
+        <input type="url" id="serverUrl" class="form-input" placeholder="http://127.0.0.1:5000">
+      </div>
+      <div class="form-group">
+        <label>API Key or JWT Token</label>
+        <input type="password" id="apiKey" class="form-input" placeholder="Your API key or Bearer token">
+      </div>
+      <button class="btn btn-primary" id="saveBtn">Save Settings</button>
+    </div>
+
+    <div class="divider"></div>
+    <p class="help-text">
+      Right-click on any email in Gmail or Outlook to analyze it.
+      Upload .eml files directly, or paste email headers for analysis.
+    </p>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

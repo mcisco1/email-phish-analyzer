@@ -13,20 +13,37 @@
             <a href="/" class="active">Analyze</a>
             <a href="/dashboard">Dashboard</a>
             <a href="/history">History</a>
+            <a href="/notifications" class="nav-notif">Alerts{% if unread_count %}<span class="notif-badge">{{ unread_count }}</span>{% endif %}</a>
+            <a href="/team">Team</a>
+            {% if current_user.is_admin() %}
+            <a href="/admin/users">Users</a>
+            <a href="/admin/audit">Audit Log</a>
+            {% endif %}
+            <span class="nav-user">{{ current_user.username }} ({{ current_user.role }})</span>
+            <a href="/logout">Logout</a>
         </div>
     </nav>
     <div class="container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        {% for category, message in messages %}
+        <div class="alert alert-{{ category }}">{{ message }}</div>
+        {% endfor %}
+        {% endif %}
+        {% endwith %}
         {% if error %}<div class="alert alert-error">{{ error }}</div>{% endif %}
         <div class="hero">
             <h1>Phishing Email Analyzer</h1>
             <p>Upload raw .eml files for automated threat analysis &mdash; header forensics, URL detonation, attachment sandboxing, MITRE ATT&amp;CK mapping, and IOC extraction.</p>
         </div>
+        {% if current_user.is_analyst() %}
         <div class="upload-card">
             <form action="/analyze" method="POST" enctype="multipart/form-data" id="upload-form">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div class="upload-zone" id="drop-zone">
                     <div class="upload-icon">&#128231;</div>
                     <p class="upload-text">Drag &amp; drop .eml files here</p>
-                    <p class="upload-sub">or click to browse &middot; supports multiple files</p>
+                    <p class="upload-sub">or click to browse &middot; supports multiple files &middot; max 25 MB per file</p>
                     <input type="file" name="eml_file" id="eml-input" accept=".eml" required multiple>
                 </div>
                 <div class="file-info" id="file-info" style="display:none">
@@ -36,6 +53,11 @@
                 <button type="submit" class="btn-analyze" id="btn-submit" disabled>Analyze Email</button>
             </form>
         </div>
+        {% else %}
+        <div class="upload-card" style="text-align:center; padding:40px">
+            <p class="muted">You have <strong>viewer</strong> access. Contact an administrator to get <strong>analyst</strong> permissions for uploading and analyzing emails.</p>
+        </div>
+        {% endif %}
         {% if stats and stats.total > 0 %}
         <div class="stats-bar">
             <div class="stat-mini"><span class="stat-num">{{ stats.total }}</span><span class="stat-lbl">Analyzed</span></div>

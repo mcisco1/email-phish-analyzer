@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Management &mdash; PhishGuard</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <nav class="topbar">
+        <a href="/" class="logo">&#9673; phishguard</a>
+        <div class="nav-links">
+            <a href="/">Analyze</a>
+            <a href="/dashboard">Dashboard</a>
+            <a href="/history">History</a>
+            <a href="/notifications" class="nav-notif">Alerts{% if unread_count %}<span class="notif-badge">{{ unread_count }}</span>{% endif %}</a>
+            <a href="/team">Team</a>
+            <a href="/admin/users" class="active">Users</a>
+            <a href="/admin/audit">Audit Log</a>
+            <span class="nav-user">{{ current_user.username }} ({{ current_user.role }})</span>
+            <a href="/logout">Logout</a>
+        </div>
+    </nav>
+    <div class="container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        {% for category, message in messages %}
+        <div class="alert alert-{{ category }}">{{ message }}</div>
+        {% endfor %}
+        {% endif %}
+        {% endwith %}
+
+        <h1>User Management</h1>
+        <p class="muted" style="margin-bottom:18px">{{ users | length }} registered users</p>
+
+        <table class="results-table">
+            <thead>
+                <tr>
+                    <th>Username</th>
+                    <th>Email</th>
+                    <th>Role</th>
+                    <th>Provider</th>
+                    <th>Status</th>
+                    <th>Last Login</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for u in users %}
+            <tr>
+                <td>{{ u.username }}</td>
+                <td class="mono" style="font-size:12px">{{ u.email }}</td>
+                <td>
+                    <form action="/admin/users/{{ u.id }}/role" method="POST" style="display:inline">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <select name="role" class="role-select" onchange="this.form.submit()">
+                            <option value="viewer" {% if u.role == 'viewer' %}selected{% endif %}>viewer</option>
+                            <option value="analyst" {% if u.role == 'analyst' %}selected{% endif %}>analyst</option>
+                            <option value="admin" {% if u.role == 'admin' %}selected{% endif %}>admin</option>
+                        </select>
+                    </form>
+                </td>
+                <td>
+                    {% if u.oauth_provider %}
+                    <span class="cat-tag">{{ u.oauth_provider }}</span>
+                    {% else %}
+                    <span class="muted">local</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if u.is_active %}
+                    <span class="badge badge-clean">active</span>
+                    {% else %}
+                    <span class="badge badge-critical">disabled</span>
+                    {% endif %}
+                </td>
+                <td class="mono" style="font-size:11px">
+                    {% if u.last_login %}{{ u.last_login.strftime('%Y-%m-%d %H:%M') }}{% else %}&mdash;{% endif %}
+                </td>
+                <td>
+                    {% if u.id != current_user.id %}
+                    <form action="/admin/users/{{ u.id }}/toggle" method="POST" style="display:inline">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="{% if u.is_active %}btn-delete-sm{% else %}btn-export{% endif %}" style="font-size:10px; padding:3px 8px">
+                            {% if u.is_active %}Disable{% else %}Enable{% endif %}
+                        </button>
+                    </form>
+                    {% else %}
+                    <span class="muted">you</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</body>
+</html>

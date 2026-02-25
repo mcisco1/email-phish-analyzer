@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome to PhishGuard</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <nav class="topbar">
+        <a href="/" class="logo">&#9673; phishguard</a>
+        <div class="nav-links">
+            <span class="nav-user">{{ current_user.username }} ({{ current_user.role }})</span>
+            <a href="/logout">Logout</a>
+        </div>
+    </nav>
+    <div class="container" style="max-width: 720px;">
+        <div class="onboarding-wrapper">
+            <!-- Step indicators -->
+            <div class="onboarding-steps">
+                <div class="step-dot active" data-step="1">1</div>
+                <div class="step-line"></div>
+                <div class="step-dot" data-step="2">2</div>
+                <div class="step-line"></div>
+                <div class="step-dot" data-step="3">3</div>
+                <div class="step-line"></div>
+                <div class="step-dot" data-step="4">4</div>
+            </div>
+
+            <!-- Step 1: Welcome -->
+            <div class="onboarding-step active" id="step-1">
+                <div class="panel" style="text-align: center; padding: 40px 28px;">
+                    <div style="font-size: 48px; margin-bottom: 16px;">&#128737;</div>
+                    <h1 style="font-size: 24px; margin-bottom: 8px;">Welcome to PhishGuard</h1>
+                    <p class="muted" style="max-width: 480px; margin: 0 auto 24px;">
+                        PhishGuard analyzes suspicious emails to detect phishing attacks, malware, and social engineering attempts. Let's walk through how it works.
+                    </p>
+                    <button class="btn-analyze" style="max-width: 280px; margin: 0 auto;" onclick="nextStep(2)">Get Started</button>
+                </div>
+            </div>
+
+            <!-- Step 2: How analysis works -->
+            <div class="onboarding-step" id="step-2">
+                <div class="panel" style="padding: 28px;">
+                    <h2 style="font-size: 20px; margin-bottom: 16px;">How Email Analysis Works</h2>
+                    <p style="margin-bottom: 20px;">When you upload a suspicious email (.eml file), PhishGuard runs it through multiple detection layers:</p>
+
+                    <div class="onboarding-cards">
+                        <div class="ob-card">
+                            <div class="ob-card-icon">&#128270;</div>
+                            <h3>Header Forensics</h3>
+                            <p>We check who really sent the email. Email headers contain authentication records called <strong>SPF</strong>, <strong>DKIM</strong>, and <strong>DMARC</strong> &mdash; these are like digital signatures that verify the sender's identity.</p>
+                            <div class="ob-explain">
+                                <strong>SPF</strong> = checks if the sending server is authorized by the domain<br>
+                                <strong>DKIM</strong> = verifies the email wasn't tampered with in transit<br>
+                                <strong>DMARC</strong> = the domain's policy on how to handle failed checks
+                            </div>
+                        </div>
+                        <div class="ob-card">
+                            <div class="ob-card-icon">&#127760;</div>
+                            <h3>URL Analysis</h3>
+                            <p>Every link in the email is safely inspected. We follow redirects, check for look-alike domains (like "g00gle.com"), and even render the destination page in a sandboxed browser to detect credential-stealing forms.</p>
+                        </div>
+                        <div class="ob-card">
+                            <div class="ob-card-icon">&#128196;</div>
+                            <h3>Attachment Scanning</h3>
+                            <p>Attachments are hashed and checked against malware databases. We detect hidden macros, executable files disguised as documents, and match against YARA threat signatures.</p>
+                        </div>
+                        <div class="ob-card">
+                            <div class="ob-card-icon">&#129504;</div>
+                            <h3>AI Classification</h3>
+                            <p>A machine learning model and natural language analysis scan the email's wording for urgency pressure, threats, impersonation patterns, and social engineering techniques.</p>
+                        </div>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-top: 20px;">
+                        <button class="btn-back" onclick="nextStep(1)">&larr; Back</button>
+                        <button class="btn-analyze" style="width: auto; padding: 10px 28px;" onclick="nextStep(3)">Next: Understanding Results</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 3: Understanding results -->
+            <div class="onboarding-step" id="step-3">
+                <div class="panel" style="padding: 28px;">
+                    <h2 style="font-size: 20px; margin-bottom: 16px;">Understanding Your Results</h2>
+                    <p style="margin-bottom: 20px;">Every analysis produces a threat score from 0 to 100. Here's what the levels mean:</p>
+
+                    <div class="ob-threat-levels">
+                        <div class="ob-threat-row">
+                            <span class="badge badge-clean" style="width: 70px; text-align: center;">CLEAN</span>
+                            <div>
+                                <strong>Score 0-9</strong> &mdash; No threats detected. The email looks legitimate.
+                            </div>
+                        </div>
+                        <div class="ob-threat-row">
+                            <span class="badge badge-low" style="width: 70px; text-align: center;">LOW</span>
+                            <div>
+                                <strong>Score 10-29</strong> &mdash; Minor oddities found but likely harmless. Maybe a missing header or unusual formatting.
+                            </div>
+                        </div>
+                        <div class="ob-threat-row">
+                            <span class="badge badge-medium" style="width: 70px; text-align: center;">MEDIUM</span>
+                            <div>
+                                <strong>Score 30-49</strong> &mdash; Suspicious elements worth investigating. Could be a targeted phishing attempt.
+                            </div>
+                        </div>
+                        <div class="ob-threat-row">
+                            <span class="badge badge-high" style="width: 70px; text-align: center;">HIGH</span>
+                            <div>
+                                <strong>Score 50-69</strong> &mdash; Strong phishing indicators. Don't click any links or open any attachments from this email.
+                            </div>
+                        </div>
+                        <div class="ob-threat-row">
+                            <span class="badge badge-critical" style="width: 70px; text-align: center;">CRITICAL</span>
+                            <div>
+                                <strong>Score 70-100</strong> &mdash; Almost certainly a phishing attack. Report it to your IT team immediately.
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="ob-explain" style="margin-top: 16px;">
+                        <strong>What's in the full report?</strong><br>
+                        Each report shows a detailed breakdown of exactly what was flagged and why, mapped to MITRE ATT&amp;CK techniques used by real threat actors. You can export results as PDF, JSON, STIX 2.1, or CSV.
+                    </div>
+
+                    <div style="display: flex; justify-content: space-between; margin-top: 20px;">
+                        <button class="btn-back" onclick="nextStep(2)">&larr; Back</button>
+                        <button class="btn-analyze" style="width: auto; padding: 10px 28px;" onclick="nextStep(4)">Next: Your First Analysis</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 4: Try it -->
+            <div class="onboarding-step" id="step-4">
+                <div class="panel" style="padding: 28px; text-align: center;">
+                    <div style="font-size: 48px; margin-bottom: 16px;">&#9989;</div>
+                    <h2 style="font-size: 20px; margin-bottom: 8px;">You're Ready!</h2>
+                    <p class="muted" style="max-width: 480px; margin: 0 auto 12px;">
+                        You now know how PhishGuard works. Here's a quick summary:
+                    </p>
+                    <div class="ob-summary">
+                        <div class="ob-summary-item">&#x2460; Upload a suspicious .eml file (or use the browser extension)</div>
+                        <div class="ob-summary-item">&#x2461; PhishGuard scans headers, URLs, attachments, and content</div>
+                        <div class="ob-summary-item">&#x2462; Review your threat score and detailed findings</div>
+                        <div class="ob-summary-item">&#x2463; Export reports and share with your team</div>
+                    </div>
+                    {% if current_user.role == 'viewer' %}
+                    <div class="alert alert-info" style="margin-top: 16px; text-align: left;">
+                        You currently have <strong>viewer</strong> access. Ask an administrator to upgrade you to <strong>analyst</strong> so you can upload and analyze emails.
+                    </div>
+                    {% endif %}
+                    <form action="/onboarding/complete" method="POST" style="margin-top: 20px;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button type="submit" class="btn-analyze" style="max-width: 320px; margin: 0 auto;">Go to Dashboard</button>
+                    </form>
+                    <form action="/onboarding/skip" method="POST" style="margin-top: 8px;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    function nextStep(step) {
+        document.querySelectorAll('.onboarding-step').forEach(function(el) {
+            el.classList.remove('active');
+        });
+        document.querySelectorAll('.step-dot').forEach(function(el) {
+            el.classList.remove('active');
+            if (parseInt(el.getAttribute('data-step')) <= step) {
+                el.classList.add('active');
+            }
+        });
+        document.getElementById('step-' + step).classList.add('active');
+        window.scrollTo({top: 0, behavior: 'smooth'});
+    }
+    </script>
+</body>
+</html>

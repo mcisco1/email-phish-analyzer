@@ -9,7 +9,7 @@ import requests
 from models import AttachmentFinding
 from config import (
     KNOWN_MALWARE_HASHES, EXECUTABLE_EXTENSIONS, MACRO_EXTENSIONS,
-    SCORE_WEIGHTS, VT_API_KEY, VT_ENABLED,
+    SCORE_WEIGHTS, VT_API_KEY, VT_ENABLED, YARA_ENABLED,
 )
 
 log = logging.getLogger(__name__)
@@ -71,6 +71,10 @@ def analyze_attachment(filename, content_type, data):
     # real VirusTotal lookup when an API key is configured
     if VT_ENABLED:
         _virustotal_lookup(finding)
+
+    # YARA rule scanning
+    if YARA_ENABLED:
+        _yara_scan(finding, data)
 
     if finding.entropy > 7.5:
         finding.threat_indicators.append(f"High entropy ({finding.entropy:.2f}) — possibly packed or encrypted")
@@ -194,6 +198,31 @@ def _types_compatible(declared, actual):
     return False
 
 
+def _yara_scan(finding, data):
+    """Run YARA rules against the attachment data."""
+    try:
+        from yara_scanner import scan_attachment
+        matches = scan_attachment(finding.filename, data)
+        finding.yara_matches = matches
+
+        for match in matches:
+            severity = match.get("severity", "medium")
+            rule_name = match.get("rule", "unknown")
+            description = match.get("description", "")
+            category = match.get("category", "unknown")
+
+            indicator = f"YARA: {rule_name}"
+            if description:
+                indicator += f" — {description}"
+            indicator += f" [{severity}/{category}]"
+            finding.threat_indicators.append(indicator)
+
+    except ImportError:
+        log.debug("yara_scanner module not available")
+    except Exception as e:
+        log.warning("YARA scan failed for %s: %s", finding.filename, e)
+
+
 def _check_malware_hashes(finding):
     for h in (finding.md5, finding.sha1, finding.sha256):
         if h in KNOWN_MALWARE_HASHES:
@@ -236,8 +265,19 @@ def score_attachment_breakdown(finding):
     if finding.declared_type and finding.actual_type and finding.actual_type != "unknown":
         declared = finding.declared_type.lower()
         actual = finding.actual_type.lower()
-        # Flag when declared content-type fundamentally disagrees with magic bytes
-        # e.g. says application/pdf but is actually application/x-dosexec
         if declared != actual and not _types_compatible(declared, actual):
             items.append((f"Content-Type mismatch: declared {declared}, actual {actual}", SCORE_WEIGHTS["declared_type_mismatch"]))
+    # YARA rule matches — score by severity
+    if hasattr(finding, "yara_matches") and finding.yara_matches:
+        seen_severities = set()
+        for match in finding.yara_matches:
+            severity = match.get("severity", "medium")
+            if severity not in seen_severities:
+                seen_severities.add(severity)
+                weight_key = f"yara_match_{severity}"
+                points = SCORE_WEIGHTS.get(weight_key, SCORE_WEIGHTS.get("yara_match_medium", 10))
+                items.append((
+                    f"YARA rule: {match.get('rule', 'unknown')} [{severity}]",
+                    points,
+                ))
     return items

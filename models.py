@@ -54,6 +54,25 @@ class URLFinding:
     detonation_error: str = ""
     threat_indicators: list = field(default_factory=list)
     risk_score: int = 0
+    # Headless browser detonation fields
+    screenshot_path: str = ""
+    js_redirects: list = field(default_factory=list)
+    meta_refresh_detected: bool = False
+    meta_refresh_url: str = ""
+    iframes_detected: list = field(default_factory=list)
+    has_credential_form: bool = False
+    browser_final_url: str = ""
+    browser_page_title: str = ""
+    browser_error: str = ""
+    # Recursive intermediate domain analysis
+    intermediate_domains: list = field(default_factory=list)
+    # IDN homograph detection
+    is_idn_homograph: bool = False
+    idn_details: str = ""
+    # HTML similarity analysis
+    html_similarity: dict = field(default_factory=dict)
+    # Threat intel feed results
+    threat_intel_results: list = field(default_factory=list)
 
     def to_dict(self):
         return asdict(self)
@@ -80,6 +99,8 @@ class AttachmentFinding:
     vt_permalink: str = ""
     threat_indicators: list = field(default_factory=list)
     risk_score: int = 0
+    # YARA scanning results
+    yara_matches: list = field(default_factory=list)
 
     def to_dict(self):
         return asdict(self)
@@ -95,6 +116,10 @@ class BodyAnalysis:
     hidden_text: bool = False
     form_action_external: bool = False
     javascript_detected: bool = False
+    # NLP analysis results
+    nlp_analysis: dict = field(default_factory=dict)
+    # HTML similarity (brand impersonation in email body)
+    html_similarity: dict = field(default_factory=dict)
 
     def to_dict(self):
         return asdict(self)
@@ -135,6 +160,10 @@ class AnalysisReport:
     body: BodyAnalysis = field(default_factory=BodyAnalysis)
     iocs: IOCExtraction = field(default_factory=IOCExtraction)
     score: ThreatScore = field(default_factory=ThreatScore)
+    # ML classification
+    ml_classification: dict = field(default_factory=dict)
+    # Threat intel enrichment
+    threat_intel: dict = field(default_factory=dict)
 
     def to_dict(self):
         return asdict(self)

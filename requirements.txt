@@ -1,8 +1,49 @@
+# Core
 flask==3.1.0
 markupsafe==3.0.2
 requests==2.32.3
 dnspython==2.7.0
 gunicorn==23.0.0
+
+# Database
+flask-sqlalchemy==3.1.1
+psycopg2-binary==2.9.10
+sqlalchemy==2.0.36
+
+# Auth
+flask-login==0.6.3
+flask-wtf==1.2.2
+PyJWT==2.10.1
+authlib==1.4.1
+
+# Rate limiting
 flask-limiter==3.8.0
+
+# Background tasks
+celery==5.4.0
+redis==5.2.1
+
+# File storage
+boto3==1.36.2
+
+# Analysis
 python-whois==0.9.4
 fpdf2==2.8.2
+python-magic-bin==0.4.14
+
+# Browser detonation
+playwright==1.49.1
+
+# YARA rule scanning
+yara-python==4.5.1
+
+# ML classifier
+scikit-learn==1.6.1
+joblib==1.4.2
+numpy==2.2.3
+
+# Config
+python-dotenv==1.0.1
+
+# WSGI servers
+waitress==3.0.2

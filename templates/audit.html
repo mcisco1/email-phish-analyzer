@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audit Log &mdash; PhishGuard</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <nav class="topbar">
+        <a href="/" class="logo">&#9673; phishguard</a>
+        <div class="nav-links">
+            <a href="/">Analyze</a>
+            <a href="/dashboard">Dashboard</a>
+            <a href="/history">History</a>
+            <a href="/notifications" class="nav-notif">Alerts{% if unread_count %}<span class="notif-badge">{{ unread_count }}</span>{% endif %}</a>
+            <a href="/team">Team</a>
+            <a href="/admin/users">Users</a>
+            <a href="/admin/audit" class="active">Audit Log</a>
+            <span class="nav-user">{{ current_user.username }} ({{ current_user.role }})</span>
+            <a href="/logout">Logout</a>
+        </div>
+    </nav>
+    <div class="container">
+        <h1>Audit Log</h1>
+        <p class="muted" style="margin-bottom:18px">Every action recorded — login, upload, analysis, export, deletion.</p>
+
+        <table class="results-table">
+            <thead>
+                <tr>
+                    <th>Timestamp</th>
+                    <th>User</th>
+                    <th>Action</th>
+                    <th>Resource</th>
+                    <th>IP</th>
+                    <th>Details</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for entry in logs.items %}
+            <tr>
+                <td class="mono" style="font-size:11px; white-space:nowrap">
+                    {% if entry.timestamp %}{{ entry.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}{% endif %}
+                </td>
+                <td>{{ entry.username }}</td>
+                <td><span class="cat-tag">{{ entry.action }}</span></td>
+                <td class="mono" style="font-size:11px">
+                    {% if entry.resource_type %}{{ entry.resource_type }}{% endif %}
+                    {% if entry.resource_id %}: {{ entry.resource_id[:20] }}{% endif %}
+                </td>
+                <td class="mono" style="font-size:11px">{{ entry.ip_address or '&mdash;' }}</td>
+                <td class="mono" style="font-size:10px; max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">
+                    {{ entry.details or '' }}
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+
+        {% if logs.pages > 1 %}
+        <div class="footer-actions" style="margin-top:14px">
+            <div style="display:flex; gap:8px; align-items:center;">
+                {% if logs.has_prev %}
+                <a href="?page={{ logs.prev_num }}" class="btn-export">Previous</a>
+                {% endif %}
+                <span class="muted">Page {{ logs.page }} of {{ logs.pages }}</span>
+                {% if logs.has_next %}
+                <a href="?page={{ logs.next_num }}" class="btn-export">Next</a>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</body>
+</html>

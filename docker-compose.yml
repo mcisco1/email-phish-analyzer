@@ -1,0 +1,112 @@
+version: "3.8"
+
+services:
+  # ---------- Flask web application ----------
+  web:
+    build: .
+    ports:
+      - "5000:5000"
+    env_file: .env
+    environment:
+      - FLASK_ENV=production
+      - DATABASE_URL=postgresql://phishguard:phishguard@postgres:5432/phishguard
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - S3_ENDPOINT_URL=http://minio:9000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_started
+    volumes:
+      - upload_data:/app/uploads
+      - screenshot_data:/app/screenshots
+      - ml_model_data:/app/ml_models
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # ---------- Celery worker ----------
+  worker:
+    build: .
+    command: celery -A celery_worker.celery_app worker --loglevel=info --concurrency=4
+    env_file: .env
+    environment:
+      - FLASK_ENV=production
+      - DATABASE_URL=postgresql://phishguard:phishguard@postgres:5432/phishguard
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - S3_ENDPOINT_URL=http://minio:9000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - upload_data:/app/uploads
+      - screenshot_data:/app/screenshots
+      - ml_model_data:/app/ml_models
+    restart: unless-stopped
+
+  # ---------- PostgreSQL ----------
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: phishguard
+      POSTGRES_PASSWORD: phishguard
+      POSTGRES_DB: phishguard
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U phishguard"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # ---------- Redis ----------
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+
+  # ---------- MinIO (S3-compatible object storage) ----------
+  minio:
+    image: minio/minio:latest
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    restart: unless-stopped
+
+volumes:
+  pg_data:
+  redis_data:
+  minio_data:
+  upload_data:
+  screenshot_data:
+  ml_model_data:

@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analysis in Progress &mdash; PhishGuard</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <nav class="topbar">
+        <a href="/" class="logo">&#9673; phishguard</a>
+        <div class="nav-links">
+            <a href="/">Analyze</a>
+            <a href="/dashboard">Dashboard</a>
+            <a href="/history">History</a>
+            <a href="/notifications" class="nav-notif">Alerts{% if unread_count %}<span class="notif-badge">{{ unread_count }}</span>{% endif %}</a>
+            <a href="/team">Team</a>
+            {% if current_user.is_admin() %}
+            <a href="/admin/users">Users</a>
+            <a href="/admin/audit">Audit Log</a>
+            {% endif %}
+            <span class="nav-user">{{ current_user.username }}</span>
+            <a href="/logout">Logout</a>
+        </div>
+    </nav>
+    <div class="container">
+        <div class="auth-card" style="text-align:center; max-width:500px; margin:60px auto">
+            <div class="upload-icon" style="font-size:48px; margin-bottom:16px">&#9881;</div>
+            <h1 class="auth-title">Analysis in Progress</h1>
+            <p class="auth-sub">{{ analysis.filename }}</p>
+
+            <div class="job-status" id="job-status" style="margin:24px 0">
+                <div class="spinner" id="spinner"></div>
+                <p class="muted" id="status-text">
+                    {% if analysis.status == 'pending' %}
+                    Queued — waiting for worker...
+                    {% elif analysis.status == 'processing' %}
+                    Analyzing email...
+                    {% elif analysis.status == 'failed' %}
+                    Analysis failed. Please try again.
+                    {% else %}
+                    Loading...
+                    {% endif %}
+                </p>
+            </div>
+
+            <p class="muted" style="font-size:11px">This page auto-refreshes. You can also check back later from <a href="/history" class="link">History</a>.</p>
+        </div>
+    </div>
+    <script>
+    (function() {
+        var reportId = "{{ analysis.id }}";
+        var status = "{{ analysis.status }}";
+        if (status === "complete") {
+            window.location.href = "/report/" + reportId;
+            return;
+        }
+        if (status === "failed") return;
+
+        function poll() {
+            fetch("/job/{{ analysis.get('task_id', '') or analysis.id }}/status")
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    document.getElementById("status-text").textContent =
+                        data.status === "processing" ? "Analyzing email..." :
+                        data.status === "pending" ? "Queued — waiting for worker..." :
+                        data.status === "complete" ? "Complete! Redirecting..." :
+                        data.status === "failed" ? "Analysis failed." : data.status;
+
+                    if (data.status === "complete") {
+                        window.location.href = "/report/" + reportId;
+                    } else if (data.status !== "failed") {
+                        setTimeout(poll, 2000);
+                    }
+                })
+                .catch(function() { setTimeout(poll, 3000); });
+        }
+        setTimeout(poll, 2000);
+    })();
+    </script>
+</body>
+</html>

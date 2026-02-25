@@ -9,7 +9,19 @@
 <body>
     <nav class="topbar">
         <a href="/" class="logo">&#9673; phishguard</a>
-        <div class="nav-links"><a href="/">Analyze</a><a href="/dashboard">Dashboard</a><a href="/history">History</a></div>
+        <div class="nav-links">
+            <a href="/">Analyze</a>
+            <a href="/dashboard">Dashboard</a>
+            <a href="/history">History</a>
+            <a href="/notifications" class="nav-notif">Alerts{% if unread_count %}<span class="notif-badge">{{ unread_count }}</span>{% endif %}</a>
+            <a href="/team">Team</a>
+            {% if current_user.is_admin() %}
+            <a href="/admin/users">Users</a>
+            <a href="/admin/audit">Audit Log</a>
+            {% endif %}
+            <span class="nav-user">{{ current_user.username }}</span>
+            <a href="/logout">Logout</a>
+        </div>
     </nav>
     <div class="container">
         <div class="verdict-card" style="border-left: 4px solid {{ report.score.level_color }}">
@@ -24,6 +36,53 @@
             </div>
             <div class="verdict-level" style="color: {{ report.score.level_color }}">{{ report.score.level_label }}</div>
         </div>
+
+        {# --- ML Classification --- #}
+        {% if report.ml_classification and report.ml_classification.ml_available %}
+        <div class="panel" style="border-left: 3px solid {% if report.ml_classification.ml_verdict == 'phishing' %}var(--critical){% elif report.ml_classification.ml_verdict == 'suspicious' %}var(--high){% else %}var(--clean){% endif %};">
+            <h2 class="panel-title">ML Classification</h2>
+            <div style="display:flex; align-items:center; gap:16px; flex-wrap:wrap;">
+                <div class="score-ring" style="--score-color: {% if report.ml_classification.ml_confidence >= 70 %}var(--critical){% elif report.ml_classification.ml_confidence >= 40 %}var(--high){% else %}var(--clean){% endif %}; width:60px; height:60px;">
+                    <span class="score-num" style="font-size:18px;">{{ report.ml_classification.ml_confidence|round(0)|int }}</span><span class="score-max">%</span>
+                </div>
+                <div>
+                    <div style="font-size:14px; font-weight:600;">
+                        <span class="badge {% if report.ml_classification.ml_verdict == 'phishing' %}badge-critical{% elif report.ml_classification.ml_verdict == 'suspicious' %}badge-high{% else %}badge-clean{% endif %}">{{ report.ml_classification.ml_verdict|upper }}</span>
+                    </div>
+                    <div style="font-size:12px; color:var(--text-dim); margin-top:4px;">Random Forest + Logistic Regression ensemble</div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        {# --- NLP Analysis --- #}
+        {% if report.body.nlp_analysis and report.body.nlp_analysis.overall_nlp_score is defined and report.body.nlp_analysis.overall_nlp_score > 0 %}
+        <div class="panel">
+            <h2 class="panel-title">NLP Body Analysis</h2>
+            <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px;">
+                {% if report.body.nlp_analysis.urgency_score %}<div class="stat-mini {% if report.body.nlp_analysis.urgency_score >= 50 %}critical{% elif report.body.nlp_analysis.urgency_score >= 25 %}high{% endif %}" style="flex:1; min-width:80px;"><span class="stat-num" style="font-size:18px;">{{ report.body.nlp_analysis.urgency_score }}</span><span class="stat-lbl">Urgency</span></div>{% endif %}
+                {% if report.body.nlp_analysis.threat_score %}<div class="stat-mini {% if report.body.nlp_analysis.threat_score >= 50 %}critical{% elif report.body.nlp_analysis.threat_score >= 25 %}high{% endif %}" style="flex:1; min-width:80px;"><span class="stat-num" style="font-size:18px;">{{ report.body.nlp_analysis.threat_score }}</span><span class="stat-lbl">Threat</span></div>{% endif %}
+                {% if report.body.nlp_analysis.impersonation_score %}<div class="stat-mini {% if report.body.nlp_analysis.impersonation_score >= 50 %}critical{% elif report.body.nlp_analysis.impersonation_score >= 25 %}high{% endif %}" style="flex:1; min-width:80px;"><span class="stat-num" style="font-size:18px;">{{ report.body.nlp_analysis.impersonation_score }}</span><span class="stat-lbl">Impersonation</span></div>{% endif %}
+                {% if report.body.nlp_analysis.grammar_score %}<div class="stat-mini {% if report.body.nlp_analysis.grammar_score >= 50 %}critical{% elif report.body.nlp_analysis.grammar_score >= 25 %}high{% endif %}" style="flex:1; min-width:80px;"><span class="stat-num" style="font-size:18px;">{{ report.body.nlp_analysis.grammar_score }}</span><span class="stat-lbl">Grammar</span></div>{% endif %}
+                {% if report.body.nlp_analysis.social_engineering_score %}<div class="stat-mini {% if report.body.nlp_analysis.social_engineering_score >= 50 %}critical{% elif report.body.nlp_analysis.social_engineering_score >= 25 %}high{% endif %}" style="flex:1; min-width:80px;"><span class="stat-num" style="font-size:18px;">{{ report.body.nlp_analysis.social_engineering_score }}</span><span class="stat-lbl">Social Eng.</span></div>{% endif %}
+            </div>
+            {% if report.body.nlp_analysis.summary %}
+            <div class="dns-record" style="margin-bottom:8px;">{{ report.body.nlp_analysis.summary }}</div>
+            {% endif %}
+            {% if report.body.nlp_analysis.findings %}
+            <div style="margin-top:6px;">
+                {% for f in report.body.nlp_analysis.findings[:8] %}
+                <div style="display:flex; align-items:center; gap:6px; padding:3px 0; border-bottom:1px solid var(--border); font-size:12px;">
+                    <span class="badge {% if f.severity == 'high' %}badge-critical{% elif f.severity == 'medium' %}badge-high{% else %}badge-medium{% endif %}" style="font-size:9px;">{{ f.severity }}</span>
+                    <span class="cat-tag" style="font-size:9px;">{{ f.category }}</span>
+                    <span>{{ f.pattern }}</span>
+                    <span class="muted">({{ f.detail }})</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
 
         {# --- MITRE ATT&CK Mapping --- #}
         {% if report.mitre_mappings %}
@@ -49,6 +108,19 @@
                 {% endfor %}
                 </tbody>
             </table>
+            {% if report.attack_summary.detection_recommendations %}
+            <details style="margin-top:12px;">
+                <summary style="cursor:pointer; font-size:12px; font-weight:600; color:var(--accent);">Detection Recommendations ({{ report.attack_summary.detection_recommendations|length }})</summary>
+                <div style="margin-top:8px;">
+                    {% for rec in report.attack_summary.detection_recommendations %}
+                    <div style="padding:8px; margin-bottom:6px; background:var(--surface-2); border-radius:4px; border-left:2px solid #7c3aed;">
+                        <div style="font-size:11px; font-weight:600;"><span class="mitre-id">{{ rec.technique_id }}</span> {{ rec.technique }}</div>
+                        <div style="font-size:12px; color:var(--text-dim); margin-top:3px;">{{ rec.recommendation }}</div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </details>
+            {% endif %}
         </div>
         {% endif %}
 
@@ -126,7 +198,7 @@
             <h2 class="panel-title">URLs <span class="count-badge">{{ report.urls | length }}</span></h2>
             {% if report.urls %}
             {% for url in report.urls %}
-            <div class="url-card {% if url.known_phishing or url.has_homoglyph %}url-danger{% elif url.threat_indicators %}url-warn{% endif %}">
+            <div class="url-card {% if url.known_phishing or url.has_homoglyph or url.has_credential_form %}url-danger{% elif url.threat_indicators %}url-warn{% endif %}">
                 <div class="url-main">{{ url.url[:120] }}{% if url.url|length > 120 %}&hellip;{% endif %}</div>
                 <div class="url-meta">
                     <span>{{ url.domain }}</span>
@@ -150,6 +222,65 @@
                 {% if url.detonation_error %}
                 <div class="detonation-error">! {{ url.detonation_error }}</div>
                 {% endif %}
+
+                {# --- Browser Detonation Results --- #}
+                {% if url.screenshot_path or url.js_redirects or url.meta_refresh_detected or url.iframes_detected or url.has_credential_form %}
+                <div class="browser-detonation" style="margin-top:10px; padding:10px; background:#1a1a2e; border-radius:6px; border:1px solid #333;">
+                    <div style="font-size:11px; color:#888; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.5px;">Browser Detonation</div>
+                    {% if url.has_credential_form %}
+                    <div style="margin-bottom:6px;"><span class="badge badge-critical">CREDENTIAL FORM</span></div>
+                    {% endif %}
+                    {% if url.browser_page_title and url.browser_page_title != url.page_title %}
+                    <div class="detonation-meta">browser title: "{{ url.browser_page_title[:80] }}"</div>
+                    {% endif %}
+                    {% if url.browser_final_url and url.browser_final_url != url.final_url %}
+                    <div class="detonation-meta">JS landed on: {{ url.browser_final_url[:100] }}</div>
+                    {% endif %}
+                    {% if url.js_redirects %}
+                    <div style="margin-top:4px;">
+                        <span style="color:#f59e0b; font-size:12px;">JS Redirects ({{ url.js_redirects|length }}):</span>
+                        {% for redir in url.js_redirects[:5] %}
+                        <div style="font-size:11px; color:#ccc; margin-left:8px;">{{ redir.url[:80] if redir is mapping else redir[:80] }}</div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                    {% if url.meta_refresh_detected %}
+                    <div style="margin-top:4px; font-size:12px; color:#f59e0b;">Meta refresh: {{ url.meta_refresh_url[:80] if url.meta_refresh_url else 'detected' }}</div>
+                    {% endif %}
+                    {% if url.iframes_detected %}
+                    <div style="margin-top:4px;">
+                        <span style="color:#f59e0b; font-size:12px;">Iframes ({{ url.iframes_detected|length }}):</span>
+                        {% for iframe in url.iframes_detected[:5] %}
+                        <div style="font-size:11px; color:#ccc; margin-left:8px;">{{ iframe.src[:80] if iframe is mapping else iframe[:80] }}{% if iframe is mapping and iframe.domain %} ({{ iframe.domain }}){% endif %}</div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                    {% if url.screenshot_path %}
+                    <div style="margin-top:8px;">
+                        <img src="/screenshots/{{ url.screenshot_path }}" alt="Page screenshot" style="max-width:100%; border-radius:4px; border:1px solid #444; max-height:300px;" loading="lazy">
+                    </div>
+                    {% endif %}
+                    {% if url.browser_error %}
+                    <div class="detonation-error" style="margin-top:4px;">browser: {{ url.browser_error }}</div>
+                    {% endif %}
+                </div>
+                {% endif %}
+
+                {# --- Intermediate Domain Analysis --- #}
+                {% if url.intermediate_domains %}
+                <div style="margin-top:8px; padding:8px; background:#1a1a2e; border-radius:6px; border:1px solid #333;">
+                    <div style="font-size:11px; color:#888; margin-bottom:4px; text-transform:uppercase; letter-spacing:0.5px;">Intermediate Domains ({{ url.intermediate_domains|length }})</div>
+                    {% for idom in url.intermediate_domains %}
+                    <div style="margin-bottom:4px; padding:4px 8px; background:#0f0f23; border-radius:4px;">
+                        <span style="color:#e2e8f0; font-size:12px; font-weight:600;">{{ idom.domain if idom is mapping else idom }}</span>
+                        {% if idom is mapping and idom.indicators %}
+                        <ul class="indicator-list" style="margin:2px 0 0 0; font-size:11px;">{% for ind in idom.indicators %}<li>{{ ind }}</li>{% endfor %}</ul>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
                 {% if url.threat_indicators %}<ul class="indicator-list">{% for t in url.threat_indicators %}<li>{{ t }}</li>{% endfor %}</ul>{% endif %}
             </div>
             {% endfor %}
@@ -184,11 +315,12 @@
             <h2 class="panel-title">Attachments <span class="count-badge">{{ report.attachments | length }}</span></h2>
             {% if report.attachments %}
             {% for att in report.attachments %}
-            <div class="att-card {% if att.malware_match or att.vt_detections %}att-danger{% elif att.threat_indicators %}att-warn{% endif %}">
+            <div class="att-card {% if att.malware_match or att.vt_detections or att.yara_matches %}att-danger{% elif att.threat_indicators %}att-warn{% endif %}">
                 <div class="att-header">
                     <span class="att-name">{{ att.filename }}</span>
                     <span class="att-size">{{ (att.size / 1024) | round(1) }} KB</span>
                     {% if att.malware_match %}<span class="badge badge-critical">MALWARE</span>{% endif %}
+                    {% if att.yara_matches %}<span class="badge badge-high">YARA: {{ att.yara_matches|length }}</span>{% endif %}
                     {% if att.vt_detections > 0 %}<span class="vt-badge vt-hit">VT: {{ att.vt_detections }}/{{ att.vt_total_engines }}</span>{% elif att.vt_permalink %}<span class="vt-badge">VT: clean</span>{% endif %}
                 </div>
                 <div class="att-meta">
@@ -202,6 +334,28 @@
                     <div><span class="hash-label">SHA256</span><span>{{ att.sha256 }}</span></div>
                 </div>
                 {% if att.vt_permalink %}<div style="margin-top:5px"><a href="{{ att.vt_permalink }}" class="link" target="_blank" rel="noopener" style="font-size:11px">View on VirusTotal &rarr;</a></div>{% endif %}
+                {% if att.yara_matches %}
+                <div style="margin-top:8px; padding:8px; background:#1a1a2e; border-radius:6px; border:1px solid #333;">
+                    <div style="font-size:11px; color:#888; margin-bottom:4px; text-transform:uppercase; letter-spacing:0.5px;">YARA Rule Matches</div>
+                    {% for match in att.yara_matches %}
+                    <div style="margin-bottom:6px; padding:4px 8px; background:#0f0f23; border-radius:4px;">
+                        <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                            <span style="color:#e2e8f0; font-weight:600; font-size:12px;">{{ match.rule if match is mapping else match }}</span>
+                            {% if match is mapping %}
+                            <span class="badge {% if match.severity == 'critical' %}badge-critical{% elif match.severity == 'high' %}badge-high{% else %}badge-medium{% endif %}" style="font-size:10px;">{{ match.severity }}</span>
+                            {% if match.category %}<span class="cat-tag" style="font-size:10px;">{{ match.category }}</span>{% endif %}
+                            {% endif %}
+                        </div>
+                        {% if match is mapping and match.description %}
+                        <div style="font-size:11px; color:#999; margin-top:2px;">{{ match.description }}</div>
+                        {% endif %}
+                        {% if match is mapping and match.strings_matched %}
+                        <div style="font-size:10px; color:#666; margin-top:2px;">matched: {{ match.strings_matched[:5]|join(', ') }}</div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
                 {% if att.threat_indicators %}<ul class="indicator-list">{% for t in att.threat_indicators %}<li>{{ t }}</li>{% endfor %}</ul>{% endif %}
             </div>
             {% endfor %}
@@ -218,6 +372,46 @@
                 {% if report.body.form_action_external %}<span class="badge badge-critical">EXTERNAL FORM</span>{% endif %}
                 {% if report.body.hidden_text %}<span class="badge badge-high">HIDDEN TEXT</span>{% endif %}
             </div>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        {# --- Threat Intelligence --- #}
+        {% if report.threat_intel and report.threat_intel.summary and report.threat_intel.summary.total_checked > 0 %}
+        <div class="panel">
+            <h2 class="panel-title">Threat Intelligence <span class="count-badge">{{ report.threat_intel.summary.feeds_used|length }} feeds</span></h2>
+            <div style="display:flex; gap:10px; margin-bottom:10px; flex-wrap:wrap;">
+                <div class="stat-mini" style="flex:1; min-width:80px;"><span class="stat-num" style="font-size:18px;">{{ report.threat_intel.summary.total_checked }}</span><span class="stat-lbl">Checked</span></div>
+                <div class="stat-mini {% if report.threat_intel.summary.total_flagged > 0 %}critical{% endif %}" style="flex:1; min-width:80px;"><span class="stat-num" style="font-size:18px;">{{ report.threat_intel.summary.total_flagged }}</span><span class="stat-lbl">Flagged</span></div>
+            </div>
+            {% if report.threat_intel.summary.feeds_used %}
+            <div style="margin-bottom:8px; display:flex; gap:6px; flex-wrap:wrap;">
+                {% for feed in report.threat_intel.summary.feeds_used %}
+                <span class="cat-tag">{{ feed }}</span>
+                {% endfor %}
+            </div>
+            {% endif %}
+            {% if report.threat_intel.ip_results %}
+            <h3 class="sub-title">IP Results</h3>
+            {% for ip, feeds in report.threat_intel.ip_results.items() %}
+            <div class="url-card {% if feeds|selectattr('abuse_confidence', 'defined')|selectattr('abuse_confidence', 'gt', 50)|list %}url-danger{% endif %}" style="margin-bottom:4px;">
+                <div class="url-main">{{ ip }}</div>
+                {% for f in feeds %}
+                <div class="url-meta"><span>{{ f.source }}</span>{% if f.abuse_confidence is defined %}<span>Abuse: {{ f.abuse_confidence }}%</span>{% endif %}{% if f.country %}<span>{{ f.country }}</span>{% endif %}{% if f.isp %}<span>{{ f.isp }}</span>{% endif %}{% if f.is_tor %}<span class="badge badge-high">TOR</span>{% endif %}</div>
+                {% endfor %}
+            </div>
+            {% endfor %}
+            {% endif %}
+            {% if report.threat_intel.url_results %}
+            <h3 class="sub-title">URL Results</h3>
+            {% for url, feeds in report.threat_intel.url_results.items() %}
+            <div class="url-card {% if feeds|selectattr('is_malicious', 'defined')|selectattr('is_malicious')|list or feeds|selectattr('is_phishing', 'defined')|selectattr('is_phishing')|list %}url-danger{% endif %}" style="margin-bottom:4px;">
+                <div class="url-main">{{ url[:100] }}{% if url|length > 100 %}&hellip;{% endif %}</div>
+                {% for f in feeds %}
+                <div class="url-meta"><span>{{ f.source }}</span>{% if f.is_malicious is defined and f.is_malicious %}<span class="badge badge-critical">MALICIOUS</span>{% endif %}{% if f.is_phishing is defined and f.is_phishing %}<span class="badge badge-critical">PHISHING</span>{% endif %}{% if f.malicious is defined and f.malicious > 0 %}<span>{{ f.malicious }}/{{ f.total_engines }} engines</span>{% endif %}</div>
+                {% endfor %}
+            </div>
+            {% endfor %}
             {% endif %}
         </div>
         {% endif %}
@@ -246,9 +440,12 @@
                 <a href="/report/{{ report.report_id }}/pdf" class="btn-export">Download PDF</a>
                 <a href="/api/report/{{ report.report_id }}" class="btn-export" target="_blank">Full Report JSON</a>
                 <a href="/api/mitre/{{ report.report_id }}" class="btn-export" target="_blank">ATT&amp;CK JSON</a>
+                {% if current_user.is_analyst() %}
                 <form action="/delete/{{ report.report_id }}" method="POST" style="display:inline" onsubmit="return confirm('Delete this analysis?')">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit" class="btn-delete">Delete</button>
                 </form>
+                {% endif %}
             </div>
         </div>
     </div>
