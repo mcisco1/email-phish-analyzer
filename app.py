@@ -1066,11 +1066,14 @@ def _register_api_routes(app):
         user = getattr(request, "api_user", None)
         rows = get_history(1000, user=user, org_scoped=True)
         lines = ["id,filename,from_address,subject,threat_level,threat_score,analyzed_at"]
+        def _csv_escape(val):
+            """Escape a value for CSV: double-quote wrapping with inner quote doubling."""
+            s = str(val).replace('"', '""')
+            return f'"{s}"'
         for r in rows:
-            subj = r.get("subject", "").replace('"', '""')
             lines.append(
-                f'"{r["id"]}","{r["filename"]}","{r["from_address"]}","{subj}",'
-                f'"{r["threat_level"]}",{r["threat_score"]},"{r.get("analyzed_at_display", "")}"'
+                f'{_csv_escape(r["id"])},{_csv_escape(r["filename"])},{_csv_escape(r["from_address"])},{_csv_escape(r.get("subject", ""))},'
+                f'{_csv_escape(r["threat_level"])},{r["threat_score"]},{_csv_escape(r.get("analyzed_at_display", ""))}'
             )
         csv_data = "\n".join(lines)
         return Response(
@@ -1095,6 +1098,7 @@ def _register_api_routes(app):
         # Authenticate
         auth_header = request.headers.get("Authorization", "")
         user = None
+        authenticated = False
         if auth_header.startswith("Bearer "):
             from auth import _decode_jwt
             from database import RevokedToken
@@ -1102,12 +1106,14 @@ def _register_api_routes(app):
             payload = _decode_jwt(token)
             if payload and payload.get("type") == "access" and not RevokedToken.is_revoked(payload["jti"]):
                 user = User.query.get(payload["sub"])
+                if user and user.is_active:
+                    authenticated = True
 
-        if not user and config.API_KEY:
+        if not authenticated and config.API_KEY:
             if request.headers.get("X-API-Key") == config.API_KEY:
-                user = None  # legacy key
+                authenticated = True  # legacy key — no user context
 
-        if not user and not config.API_KEY:
+        if not authenticated:
             resp = jsonify({"error": "Authentication required"})
             resp.headers["Access-Control-Allow-Origin"] = request.headers.get("Origin", "*")
             return resp, 401
@@ -1272,9 +1278,10 @@ def _register_error_handlers(app):
     def not_found(e):
         if request.path.startswith("/api/"):
             return jsonify({"error": "Not found"}), 404
+        user = current_user if current_user.is_authenticated else None
         return render_template(
             "index.html", error="Page not found",
-            stats=get_stats(), recent=get_history(10), vt=config.VT_ENABLED,
+            stats=get_stats(user=user, org_scoped=True), recent=get_history(10, user=user, org_scoped=True), vt=config.VT_ENABLED,
         ), 404
 
     @app.errorhandler(413)
@@ -1283,8 +1290,9 @@ def _register_error_handlers(app):
         if request.path.startswith("/api/"):
             return jsonify({"error": msg}), 413
         flash(msg, "error")
+        user = current_user if current_user.is_authenticated else None
         return render_template(
-            "index.html", stats=get_stats(), recent=get_history(10), vt=config.VT_ENABLED,
+            "index.html", stats=get_stats(user=user, org_scoped=True), recent=get_history(10, user=user, org_scoped=True), vt=config.VT_ENABLED,
         ), 413
 
     @app.errorhandler(429)
@@ -1292,8 +1300,9 @@ def _register_error_handlers(app):
         if request.path.startswith("/api/"):
             return jsonify({"error": "Rate limit exceeded — try again later"}), 429
         flash("Too many requests — please slow down.", "error")
+        user = current_user if current_user.is_authenticated else None
         return render_template(
-            "index.html", stats=get_stats(), recent=get_history(10), vt=config.VT_ENABLED,
+            "index.html", stats=get_stats(user=user, org_scoped=True), recent=get_history(10, user=user, org_scoped=True), vt=config.VT_ENABLED,
         ), 429
 
     @app.errorhandler(500)

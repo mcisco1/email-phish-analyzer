@@ -79,15 +79,18 @@ def analyze_email_task(self, raw_bytes_hex, filename, user_id=None, s3_key=None)
     from whois_lookup import enrich_url_findings
     from models import AnalysisReport
     from database import db as sa_db, Analysis, save_report, log_audit
+    import config as task_config
 
     task_id = self.request.id
-    report_id = uuid.uuid4().hex[:12]
 
-    # Update status to processing
+    # Find the existing pending record by task_id and reuse its report_id
     analysis = Analysis.query.filter_by(task_id=task_id).first()
     if analysis:
+        report_id = analysis.id
         analysis.status = "processing"
         sa_db.session.commit()
+    else:
+        report_id = uuid.uuid4().hex[:12]
 
     try:
         raw_bytes = bytes.fromhex(raw_bytes_hex)
@@ -117,7 +120,60 @@ def analyze_email_task(self, raw_bytes_hex, filename, user_id=None, s3_key=None)
         iocs = extract_iocs(headers, body, url_findings, att_findings)
         report.iocs = iocs
 
-        score = calculate_score(headers, url_findings, att_findings, body)
+        # --- NLP body analysis ---
+        nlp_result = None
+        if task_config.NLP_ANALYSIS_ENABLED:
+            try:
+                from nlp_analyzer import analyze_body
+                nlp_result = analyze_body(
+                    body.text_content, body.html_content, headers.subject,
+                )
+                body.nlp_analysis = nlp_result
+            except Exception:
+                logger.debug("NLP analysis failed — continuing without it")
+
+        # --- HTML similarity analysis on email body ---
+        if task_config.HTML_SIMILARITY_ENABLED and body.html_content:
+            try:
+                from html_similarity import analyze_email_html
+                from_domain = headers.from_address.split("@")[-1] if "@" in headers.from_address else ""
+                body_brand_matches = analyze_email_html(body.html_content, from_domain)
+                if body_brand_matches:
+                    body.html_similarity = {"matches": body_brand_matches}
+            except Exception:
+                logger.debug("HTML similarity (body) failed — continuing without it")
+
+        # --- ML classification ---
+        ml_result = None
+        if task_config.ML_CLASSIFIER_ENABLED:
+            try:
+                from ml_classifier import classify
+                ml_result = classify(headers, url_findings, att_findings, body)
+                report.ml_classification = ml_result
+            except Exception:
+                logger.debug("ML classification failed — continuing without it")
+
+        # --- Threat intel feed enrichment ---
+        threat_intel_result = None
+        if task_config.THREAT_INTEL_ENABLED:
+            try:
+                from threat_intel import enrich_iocs as ti_enrich
+                threat_intel_result = ti_enrich(
+                    ip_addresses=iocs.ip_addresses if hasattr(iocs, 'ip_addresses') else iocs.get("ip_addresses", []),
+                    domains=iocs.domains if hasattr(iocs, 'domains') else iocs.get("domains", []),
+                    urls=iocs.urls if hasattr(iocs, 'urls') else iocs.get("urls", []),
+                    config=task_config,
+                )
+                report.threat_intel = threat_intel_result
+            except Exception:
+                logger.debug("Threat intel enrichment failed — continuing without it")
+
+        score = calculate_score(
+            headers, url_findings, att_findings, body,
+            ml_result=ml_result,
+            nlp_result=nlp_result,
+            threat_intel_result=threat_intel_result,
+        )
         report.score = score
 
         mitre_mappings = map_findings_to_mitre(score.breakdown)
@@ -136,6 +192,15 @@ def analyze_email_task(self, raw_bytes_hex, filename, user_id=None, s3_key=None)
 
         save_report(report_dict, user_id=user_id, s3_key=s3_key,
                     task_id=task_id, status="complete")
+
+        # Send notifications for the completed analysis
+        try:
+            from notifications import notify_on_analysis
+            saved_analysis = Analysis.query.get(report_id)
+            if saved_analysis:
+                notify_on_analysis(saved_analysis, report_dict)
+        except Exception:
+            logger.debug("Notification dispatch failed — continuing")
 
         logger.info("Background analysis complete: %s (%s) -> %s",
                      filename, report_id, score.level)
