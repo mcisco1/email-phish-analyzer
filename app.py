@@ -48,6 +48,8 @@ from database import (
     Notification, get_weekly_comparison, get_top_attack_types,
     get_top_domains, get_recent_critical, get_user_notifications,
     get_unread_notification_count, create_notification,
+    get_threat_velocity, get_soc_narrative,
+    get_team_activity, get_team_member_stats, ImapPollLog,
 )
 from auth import (
     auth_bp, login_manager, csrf, api_auth_required, api_role_required,
@@ -341,6 +343,24 @@ def _register_onboarding_routes(app):
         sa_db.session.commit()
         return redirect(url_for("index"))
 
+    @app.route("/onboarding/analyze-sample", methods=["POST"])
+    @login_required
+    def onboarding_analyze_sample():
+        """Run analysis on the bundled sample phishing email for guided onboarding."""
+        sample_path = os.path.join(config.BASE_DIR, "static", "samples", "sample_phishing.eml")
+        if not os.path.exists(sample_path):
+            return jsonify({"error": "Sample email not found"}), 404
+        with open(sample_path, "rb") as f:
+            raw_bytes = f.read()
+        try:
+            report = _run_analysis(raw_bytes, "sample_phishing.eml")
+            rd = report.to_dict()
+            save_report(rd, user_id=current_user.id, org_id=current_user.org_id)
+            return jsonify({"report_id": report.report_id})
+        except Exception:
+            logger.exception("Sample analysis failed")
+            return jsonify({"error": "Analysis failed"}), 500
+
 
 # =========================================================================
 # NOTIFICATION ROUTES
@@ -397,6 +417,28 @@ def _register_notification_routes(app):
         sa_db.session.commit()
         return redirect(url_for("notifications_page"))
 
+    @app.route("/notifications/test", methods=["POST"])
+    @login_required
+    def test_notification():
+        try:
+            from notifications import send_test_notification
+            result = send_test_notification(current_user)
+            parts = []
+            if result.get("in_app"):
+                parts.append("in-app")
+            if result.get("email"):
+                parts.append("email")
+            if result.get("slack"):
+                parts.append("Slack")
+            if parts:
+                flash(f"Test notification sent: {', '.join(parts)}.", "success")
+            else:
+                flash("Test in-app notification created. Configure SMTP/Slack for external alerts.", "info")
+        except Exception:
+            logger.exception("Test notification failed")
+            flash("Failed to send test notification.", "error")
+        return redirect(url_for("notifications_page"))
+
     @app.route("/api/notifications/unread")
     @login_required
     @csrf.exempt
@@ -416,13 +458,18 @@ def _register_team_routes(app):
         org = None
         members = []
         invites = []
+        activity = []
+        member_stats = []
         if current_user.org_id:
             org = Organization.query.get(current_user.org_id)
             if org:
                 members = User.query.filter_by(org_id=org.id, is_active=True).order_by(User.created_at).all()
                 if current_user.is_org_admin():
                     invites = TeamInvite.query.filter_by(org_id=org.id, accepted=False).order_by(TeamInvite.created_at.desc()).all()
-        return render_template("team.html", org=org, members=members, invites=invites)
+                    activity = get_team_activity(org.id, limit=15)
+                    member_stats = get_team_member_stats(org.id)
+        return render_template("team.html", org=org, members=members, invites=invites,
+                               activity=activity, member_stats=member_stats)
 
     @app.route("/team/create", methods=["POST"])
     @login_required
@@ -644,6 +691,64 @@ def _register_team_routes(app):
         flash(f"{target.username} removed from the organization.", "success")
         return redirect(url_for("team_page"))
 
+    @app.route("/team/export/csv")
+    @login_required
+    def team_export_csv():
+        if not current_user.org_id or not current_user.is_org_admin():
+            flash("Permission denied.", "error")
+            return redirect(url_for("team_page"))
+        rows = get_history(1000, user=current_user, org_scoped=True)
+        lines = ["id,filename,from_address,subject,threat_level,threat_score,analyzed_at"]
+        def _csv_escape(val):
+            s = str(val).replace('"', '""')
+            return f'"{s}"'
+        for r in rows:
+            lines.append(
+                f'{_csv_escape(r["id"])},{_csv_escape(r["filename"])},{_csv_escape(r["from_address"])},'
+                f'{_csv_escape(r.get("subject", ""))},{_csv_escape(r["threat_level"])},'
+                f'{r["threat_score"]},{_csv_escape(r.get("analyzed_at_display", ""))}'
+            )
+        log_audit("team_export_csv", user=current_user, ip_address=_client_ip())
+        return Response(
+            "\n".join(lines), mimetype="text/csv",
+            headers={"Content-Disposition": "attachment; filename=phishguard_team_export.csv"},
+        )
+
+    # --- IMAP Admin Routes ---
+    @app.route("/api/admin/imap/test", methods=["POST"])
+    @login_required
+    @csrf.exempt
+    def admin_imap_test():
+        if not current_user.is_admin():
+            return jsonify({"error": "Admin required"}), 403
+        if not config.IMAP_ENABLED:
+            return jsonify({"error": "IMAP not configured", "status": "disabled"}), 400
+        try:
+            from imap_poller import test_connection
+            result = test_connection()
+            return jsonify(result)
+        except Exception as e:
+            return jsonify({"error": str(e), "status": "failed"}), 500
+
+    @app.route("/api/admin/imap/status")
+    @login_required
+    @csrf.exempt
+    def admin_imap_status():
+        if not current_user.is_admin():
+            return jsonify({"error": "Admin required"}), 403
+        last_poll = ImapPollLog.query.order_by(ImapPollLog.polled_at.desc()).first()
+        return jsonify({
+            "enabled": config.IMAP_ENABLED,
+            "host": config.IMAP_HOST if config.IMAP_ENABLED else "",
+            "poll_interval_minutes": config.IMAP_POLL_INTERVAL,
+            "last_poll": {
+                "time": last_poll.polled_at.isoformat() if last_poll else None,
+                "emails_found": last_poll.emails_found if last_poll else 0,
+                "emails_processed": last_poll.emails_processed if last_poll else 0,
+                "status": last_poll.status if last_poll else "never",
+            },
+        })
+
 
 # =========================================================================
 # WEB ROUTES
@@ -805,17 +910,23 @@ def _register_web_routes(app):
     @app.route("/dashboard")
     @login_required
     def dashboard():
+        period = request.args.get("period", 30, type=int)
+        if period not in (7, 30, 90):
+            period = 30
         stats = get_stats(user=current_user, org_scoped=True)
-        trend = get_trend_data(30, user=current_user, org_scoped=True)
+        trend = get_trend_data(period, user=current_user, org_scoped=True)
         recent = get_history(20, user=current_user, org_scoped=True)
         weekly = get_weekly_comparison(user=current_user, org_scoped=True)
         attack_types = get_top_attack_types(limit=6, user=current_user, org_scoped=True)
         top_domains = get_top_domains(limit=8, user=current_user, org_scoped=True)
         recent_critical = get_recent_critical(limit=5, user=current_user, org_scoped=True)
+        velocity = get_threat_velocity(period, user=current_user, org_scoped=True)
+        narrative = get_soc_narrative(user=current_user, org_scoped=True)
         return render_template(
             "dashboard.html", stats=stats, trend=trend, recent=recent, vt=config.VT_ENABLED,
             weekly=weekly, attack_types=attack_types, top_domains=top_domains,
-            recent_critical=recent_critical,
+            recent_critical=recent_critical, velocity=velocity, narrative=narrative,
+            period=period,
         )
 
     @app.route("/delete/<report_id>", methods=["POST"])

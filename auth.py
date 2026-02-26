@@ -454,8 +454,31 @@ def api_role_required(*roles):
 @auth_bp.route("/admin/users")
 @role_required("admin")
 def admin_users():
+    import config as app_config
     users = User.query.order_by(User.created_at.desc()).all()
-    return render_template("admin.html", users=users)
+
+    # IMAP status for admin panel
+    imap_enabled = getattr(app_config, "IMAP_ENABLED", False)
+    imap_config_data = None
+    last_poll = None
+
+    if imap_enabled:
+        imap_config_data = {
+            "host": getattr(app_config, "IMAP_HOST", ""),
+            "user": getattr(app_config, "IMAP_USER", ""),
+            "interval": getattr(app_config, "IMAP_POLL_INTERVAL", 60),
+        }
+        try:
+            from database import ImapPollLog
+            last_poll = ImapPollLog.query.order_by(ImapPollLog.polled_at.desc()).first()
+        except Exception:
+            pass
+
+    return render_template(
+        "admin.html", users=users,
+        imap_enabled=imap_enabled, imap_config=imap_config_data,
+        last_poll=last_poll,
+    )
 
 
 @auth_bp.route("/admin/users/<user_id>/role", methods=["POST"])

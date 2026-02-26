@@ -30,14 +30,30 @@
                 <h1 style="font-size: 22px; margin-bottom: 4px;">Security Operations Dashboard</h1>
                 <p class="muted" style="font-size: 12px;">Real-time threat intelligence overview{% if current_user.organization %} &mdash; {{ current_user.organization.name }}{% endif %}</p>
             </div>
-            <div style="display: flex; gap: 8px;">
-                <a href="/api/export/csv" class="btn-export">Export CSV</a>
+            <div class="quick-actions">
                 <a href="/" class="btn-analyze" style="width: auto; padding: 8px 20px; font-size: 12px;">+ New Analysis</a>
+                <a href="/api/export/csv" class="btn-export">Export CSV</a>
+                <a href="/history" class="btn-export">Full History</a>
             </div>
         </div>
 
-        <!-- Weekly Comparison Cards -->
-        <div class="soc-kpi-row">
+        <!-- Time Period Selector -->
+        <div class="period-selector">
+            <a href="/dashboard?period=7" class="period-pill {% if period == 7 %}active{% endif %}">7 days</a>
+            <a href="/dashboard?period=30" class="period-pill {% if period == 30 %}active{% endif %}">30 days</a>
+            <a href="/dashboard?period=90" class="period-pill {% if period == 90 %}active{% endif %}">90 days</a>
+        </div>
+
+        <!-- SOC Narrative -->
+        {% if narrative %}
+        <div class="soc-narrative">
+            <div class="soc-narrative-icon">&#128202;</div>
+            <div class="soc-narrative-text">{{ narrative }}</div>
+        </div>
+        {% endif %}
+
+        <!-- KPI Cards -->
+        <div class="soc-kpi-row" style="grid-template-columns: repeat(6, 1fr);">
             <div class="soc-kpi">
                 <div class="soc-kpi-value">{{ stats.total }}</div>
                 <div class="soc-kpi-label">Total Analyzed</div>
@@ -61,8 +77,17 @@
                 <div class="soc-kpi-label">Avg Threat Score</div>
             </div>
             <div class="soc-kpi">
-                <div class="soc-kpi-value {% if vt %}text-active{% else %}text-inactive{% endif %}">{{ ((stats.by_level.get('critical', 0) + stats.by_level.get('high', 0)) / stats.total * 100) | round(1) if stats.total > 0 else 0 }}%</div>
+                <div class="soc-kpi-value {% if stats.total > 0 %}{% if ((stats.by_level.get('critical', 0) + stats.by_level.get('high', 0)) / stats.total * 100) > 30 %}text-danger{% else %}text-active{% endif %}{% endif %}">{{ ((stats.by_level.get('critical', 0) + stats.by_level.get('high', 0)) / stats.total * 100) | round(1) if stats.total > 0 else 0 }}%</div>
                 <div class="soc-kpi-label">High/Critical Rate</div>
+            </div>
+            <div class="soc-kpi">
+                <div class="soc-kpi-value" style="color: {% if velocity.trend == 'increasing' %}var(--critical){% elif velocity.trend == 'decreasing' %}var(--clean){% else %}var(--text-dim){% endif %};">
+                    {% if velocity.trend == 'increasing' %}&#9650;{% elif velocity.trend == 'decreasing' %}&#9660;{% else %}&#8596;{% endif %}
+                </div>
+                <div class="soc-kpi-label">Threat Velocity</div>
+                <div class="soc-kpi-change {% if velocity.trend == 'increasing' %}up{% elif velocity.trend == 'decreasing' %}down{% endif %}">
+                    {{ velocity.trend | capitalize }} ({{ velocity.change_pct }}%)
+                </div>
             </div>
         </div>
 
@@ -77,7 +102,7 @@
         <!-- Main Charts Row -->
         <div class="dashboard-grid">
             <div class="panel chart-panel">
-                <h2 class="panel-title">30-Day Threat Trend</h2>
+                <h2 class="panel-title">{{ period }}-Day Threat Trend</h2>
                 <div class="chart-container"><canvas id="trendChart"></canvas></div>
             </div>
             <div class="panel chart-panel">
@@ -89,7 +114,7 @@
         <!-- Attack Types + Top Domains Row -->
         <div class="dashboard-grid" style="margin-top: 14px;">
             <div class="panel">
-                <h2 class="panel-title">Top Attack Categories <span class="count-badge">30d</span></h2>
+                <h2 class="panel-title">Top Attack Categories <span class="count-badge">{{ period }}d</span></h2>
                 {% if attack_types %}
                 <div class="soc-bar-list">
                     {% set max_attack = attack_types[0].count if attack_types else 1 %}
@@ -109,7 +134,7 @@
             </div>
 
             <div class="panel">
-                <h2 class="panel-title">Recurring Sender Domains <span class="count-badge">30d</span></h2>
+                <h2 class="panel-title">Recurring Sender Domains <span class="count-badge">{{ period }}d</span></h2>
                 {% if top_domains %}
                 <div class="soc-bar-list">
                     {% set max_dom = top_domains[0].count if top_domains else 1 %}
@@ -176,88 +201,12 @@
     </div>
 
     <script>
-    (function() {
-        var levelData = {{ stats.by_level | tojson }};
-        var trendData = {{ trend | tojson }};
-
-        // --- 30-Day Trend Area Chart ---
-        var dayMap = {};
-        trendData.forEach(function(row) {
-            if (!dayMap[row.day]) dayMap[row.day] = {critical:0, high:0, medium:0, low:0, clean:0};
-            dayMap[row.day][row.threat_level] = row.cnt;
-        });
-        var days = Object.keys(dayMap).sort();
-        var critData = days.map(function(d) { return dayMap[d].critical || 0; });
-        var highData = days.map(function(d) { return dayMap[d].high || 0; });
-        var medData = days.map(function(d) { return dayMap[d].medium || 0; });
-        var lowCleanData = days.map(function(d) { return (dayMap[d].low || 0) + (dayMap[d].clean || 0); });
-        // Short date labels
-        var dayLabels = days.map(function(d) { var parts = d.split('-'); return parts[1] + '/' + parts[2]; });
-
-        var trendCtx = document.getElementById('trendChart').getContext('2d');
-        new Chart(trendCtx, {
-            type: 'bar',
-            data: {
-                labels: dayLabels,
-                datasets: [
-                    { label: 'Critical', data: critData, backgroundColor: 'rgba(248,81,73,0.85)', borderRadius: 2, order: 1 },
-                    { label: 'High', data: highData, backgroundColor: 'rgba(210,153,34,0.85)', borderRadius: 2, order: 2 },
-                    { label: 'Medium', data: medData, backgroundColor: 'rgba(227,179,65,0.7)', borderRadius: 2, order: 3 },
-                    { label: 'Low/Clean', data: lowCleanData, backgroundColor: 'rgba(63,185,80,0.5)', borderRadius: 2, order: 4 }
-                ]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                interaction: { mode: 'index', intersect: false },
-                scales: {
-                    x: { stacked: true, ticks: { color: '#6e7681', maxRotation: 0, maxTicksLimit: 10, font: {size: 10} }, grid: { color: '#1c2333', drawBorder: false } },
-                    y: { stacked: true, beginAtZero: true, ticks: { color: '#6e7681', stepSize: 1, font: {size: 10} }, grid: { color: '#1c2333', drawBorder: false } }
-                },
-                plugins: {
-                    legend: { position: 'bottom', labels: { color: '#c9d1d9', font: { size: 10 }, boxWidth: 12, padding: 12 } },
-                    tooltip: { backgroundColor: '#151a26', titleColor: '#c9d1d9', bodyColor: '#c9d1d9', borderColor: '#1c2333', borderWidth: 1, padding: 10 }
-                }
-            }
-        });
-
-        // --- Threat Distribution Doughnut ---
-        var pieCtx = document.getElementById('threatPieChart').getContext('2d');
-        new Chart(pieCtx, {
-            type: 'doughnut',
-            data: {
-                labels: ['Critical', 'High', 'Medium', 'Low', 'Clean'],
-                datasets: [{
-                    data: [
-                        levelData.critical || 0,
-                        levelData.high || 0,
-                        levelData.medium || 0,
-                        levelData.low || 0,
-                        levelData.clean || 0
-                    ],
-                    backgroundColor: [
-                        'rgba(248,81,73,0.85)',
-                        'rgba(210,153,34,0.85)',
-                        'rgba(227,179,65,0.7)',
-                        'rgba(63,185,80,0.6)',
-                        'rgba(46,160,67,0.5)'
-                    ],
-                    borderColor: '#0d1017',
-                    borderWidth: 2,
-                    hoverOffset: 6
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                cutout: '60%',
-                plugins: {
-                    legend: { position: 'bottom', labels: { color: '#c9d1d9', font: { size: 10 }, boxWidth: 12, padding: 12 } },
-                    tooltip: { backgroundColor: '#151a26', titleColor: '#c9d1d9', bodyColor: '#c9d1d9', borderColor: '#1c2333', borderWidth: 1, padding: 10 }
-                }
-            }
-        });
-    })();
+    window.__pgDashboard = {
+        levelData: {{ stats.by_level | tojson }},
+        trendData: {{ trend | tojson }},
+        period: {{ period }},
+    };
     </script>
+    <script src="/static/js/dashboard.js"></script>
 </body>
 </html>

@@ -67,13 +67,19 @@
             </div>
 
             <!-- Members Table -->
-            <h3 class="sub-title">Members</h3>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <h3 class="sub-title">Members</h3>
+                {% if current_user.is_org_admin() %}
+                <a href="/team/export/csv" class="btn-export" style="font-size: 11px;">Export Team Report (CSV)</a>
+                {% endif %}
+            </div>
             <table class="results-table">
                 <thead>
-                    <tr><th>User</th><th>Email</th><th>App Role</th><th>Team Role</th><th>Last Login</th>{% if current_user.is_org_admin() %}<th>Actions</th>{% endif %}</tr>
+                    <tr><th>User</th><th>Email</th><th>App Role</th><th>Team Role</th><th>Analyses</th><th>Critical</th><th>Last Login</th>{% if current_user.is_org_admin() %}<th>Actions</th>{% endif %}</tr>
                 </thead>
                 <tbody>
                 {% for m in members %}
+                {% set ms = member_stats.get(m.id, {}) if member_stats else {} %}
                 <tr>
                     <td>{{ m.username }}{% if m.id == current_user.id %} <span class="muted">(you)</span>{% endif %}</td>
                     <td class="mono" style="font-size: 12px;">{{ m.email }}</td>
@@ -91,6 +97,8 @@
                         <span class="cat-tag">{{ m.org_role }}</span>
                         {% endif %}
                     </td>
+                    <td class="mono" style="font-size: 12px;">{{ ms.get('total', 0) }}</td>
+                    <td class="mono" style="font-size: 12px; {% if ms.get('critical', 0) > 0 %}color: var(--critical);{% endif %}">{{ ms.get('critical', 0) }}</td>
                     <td class="mono" style="font-size: 11px;">
                         {% if m.last_login %}{{ m.last_login.strftime('%Y-%m-%d %H:%M') }}{% else %}&mdash;{% endif %}
                     </td>
@@ -150,6 +158,41 @@
                 </tbody>
             </table>
             {% endif %}
+        </div>
+        {% endif %}
+
+        <!-- Team Activity Feed (org admins) -->
+        {% if current_user.is_org_admin() and activity %}
+        <div class="panel" style="margin-top: 14px;">
+            <h2 class="panel-title">Recent Team Activity <span class="count-badge">{{ activity|length }}</span></h2>
+            <div class="activity-feed">
+                {% for a in activity %}
+                <div class="activity-item">
+                    <div class="activity-icon">
+                        {% if a.action == 'analyze' %}&#128270;{% elif a.action == 'delete' %}&#128465;{% elif a.action == 'export' %}&#128196;{% elif a.action == 'login' %}&#128274;{% else %}&#128276;{% endif %}
+                    </div>
+                    <div class="activity-text">
+                        <span class="activity-user">{{ a.username or 'Unknown' }}</span>
+                        {% if a.action == 'analyze' %}
+                        analyzed <strong>{{ a.details.get('filename', 'an email') if a.details else 'an email' }}</strong>
+                        {% elif a.action == 'delete' %}
+                        deleted analysis <strong>{{ a.resource_id or '' }}</strong>
+                        {% elif a.action == 'export' %}
+                        exported data
+                        {% elif a.action == 'login' %}
+                        logged in
+                        {% elif a.action == 'upload_async' %}
+                        submitted <strong>{{ a.details.get('filename', 'an email') if a.details else 'an email' }}</strong> for analysis
+                        {% else %}
+                        {{ a.action }}
+                        {% endif %}
+                    </div>
+                    <div class="activity-time">
+                        {{ a.timestamp.strftime('%m/%d %H:%M') if a.timestamp else '' }}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
         </div>
         {% endif %}
 

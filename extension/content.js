@@ -175,3 +175,112 @@ function getServerUrl() {
   // Default, will be overridden by stored settings
   return "http://127.0.0.1:5000";
 }
+
+// =========================================================================
+// Inject "Analyze with PhishGuard" button into email toolbar
+// =========================================================================
+
+function injectAnalyzeButton() {
+  const hostname = window.location.hostname;
+
+  if (hostname === "mail.google.com") {
+    injectGmailButton();
+  } else if (hostname.includes("outlook")) {
+    injectOutlookButton();
+  }
+}
+
+function createPgButton() {
+  const btn = document.createElement("button");
+  btn.className = "pg-inject-btn";
+  btn.setAttribute("data-pg-injected", "true");
+  btn.innerHTML = '&#9673; Analyze';
+  btn.title = "Analyze with PhishGuard";
+  btn.addEventListener("click", function (e) {
+    e.preventDefault();
+    e.stopPropagation();
+
+    btn.textContent = "Analyzing...";
+    btn.disabled = true;
+
+    const emailContent = extractEmailContent();
+    if (!emailContent) {
+      btn.textContent = "No email found";
+      btn.style.color = "#ef4444";
+      setTimeout(function () {
+        btn.innerHTML = '&#9673; Analyze';
+        btn.disabled = false;
+        btn.style.color = "";
+      }, 2000);
+      return;
+    }
+
+    chrome.runtime.sendMessage({
+      action: "analyze",
+      content: emailContent,
+      filename: "inbox-email.eml"
+    }, function (response) {
+      if (response && response.success) {
+        showResultOverlay(response.data);
+        btn.innerHTML = '&#9673; Done!';
+        btn.style.color = "#2ea043";
+      } else {
+        showErrorOverlay(response ? response.error : "Analysis failed");
+        btn.innerHTML = '&#9673; Failed';
+        btn.style.color = "#ef4444";
+      }
+      setTimeout(function () {
+        btn.innerHTML = '&#9673; Analyze';
+        btn.disabled = false;
+        btn.style.color = "";
+      }, 3000);
+    });
+  });
+  return btn;
+}
+
+function injectGmailButton() {
+  // Watch for email open events in Gmail
+  const observer = new MutationObserver(function () {
+    // Look for the email action toolbar
+    const toolbar = document.querySelector('[gh="tm"]') ||
+                    document.querySelector('[gh="mtb"]') ||
+                    document.querySelector('.iH > div');
+
+    if (toolbar && !toolbar.querySelector('[data-pg-injected]')) {
+      const btn = createPgButton();
+      btn.style.marginLeft = "8px";
+      toolbar.appendChild(btn);
+    }
+  });
+
+  observer.observe(document.body, {
+    childList: true,
+    subtree: true
+  });
+}
+
+function injectOutlookButton() {
+  // Watch for email open events in Outlook
+  const observer = new MutationObserver(function () {
+    const toolbar = document.querySelector('[role="toolbar"]');
+
+    if (toolbar && !toolbar.querySelector('[data-pg-injected]')) {
+      const btn = createPgButton();
+      btn.style.marginLeft = "4px";
+      toolbar.appendChild(btn);
+    }
+  });
+
+  observer.observe(document.body, {
+    childList: true,
+    subtree: true
+  });
+}
+
+// Initialize button injection
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", injectAnalyzeButton);
+} else {
+  injectAnalyzeButton();
+}

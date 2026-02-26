@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 from concurrent.futures import ThreadPoolExecutor
 
 from celery import Celery
+from celery.schedules import crontab
 
 import config
 
@@ -40,12 +41,23 @@ celery_app.conf.update(
     task_time_limit=180,
     result_expires=3600,
     broker_connection_retry_on_startup=True,
+    beat_schedule={
+        "poll-imap-inbox": {
+            "task": "phishguard.poll_imap",
+            "schedule": getattr(config, "IMAP_POLL_INTERVAL", 60),
+        },
+        "weekly-threat-summary": {
+            "task": "phishguard.weekly_summary",
+            "schedule": crontab(hour=9, minute=0, day_of_week=1),  # Monday 9 AM
+        },
+    },
 )
 
 
 def init_celery(app):
     """Bind Celery to the Flask app context so tasks can access the DB."""
     celery_app.conf.update(app.config)
+    set_flask_app(app)
 
     class ContextTask(celery_app.Task):
         abstract = True
@@ -221,3 +233,58 @@ def analyze_email_task(self, raw_bytes_hex, filename, user_id=None, s3_key=None)
             analysis.status = "failed"
             sa_db.session.commit()
         raise self.retry(exc=exc)
+
+
+# ---------------------------------------------------------------------------
+# Scheduled tasks
+# ---------------------------------------------------------------------------
+
+# Store a reference to the Flask app for scheduled tasks
+_flask_app = None
+
+
+def set_flask_app(app):
+    """Called from init_celery to store the Flask app reference."""
+    global _flask_app
+    _flask_app = app
+
+
+@celery_app.task(name="phishguard.poll_imap", ignore_result=True)
+def poll_imap_task():
+    """Poll the IMAP inbox for forwarded emails and analyze them."""
+    if not getattr(config, "IMAP_ENABLED", False):
+        return {"status": "disabled"}
+
+    if _flask_app is None:
+        logger.warning("Flask app not initialized — skipping IMAP poll")
+        return {"status": "error", "reason": "no_app"}
+
+    try:
+        from imap_poller import poll_inbox
+        result = poll_inbox(_flask_app)
+        logger.info(
+            "IMAP poll complete: %d found, %d processed",
+            result.get("emails_found", 0),
+            result.get("emails_processed", 0),
+        )
+        return result
+    except Exception:
+        logger.exception("IMAP poll task failed")
+        return {"status": "error"}
+
+
+@celery_app.task(name="phishguard.weekly_summary", ignore_result=True)
+def weekly_summary_task():
+    """Send weekly threat summary reports to subscribed users."""
+    if _flask_app is None:
+        logger.warning("Flask app not initialized — skipping weekly summary")
+        return {"status": "error", "reason": "no_app"}
+
+    try:
+        from notifications import send_weekly_summary
+        send_weekly_summary(_flask_app)
+        logger.info("Weekly summary emails dispatched")
+        return {"status": "success"}
+    except Exception:
+        logger.exception("Weekly summary task failed")
+        return {"status": "error"}

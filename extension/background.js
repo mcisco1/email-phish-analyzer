@@ -66,6 +66,25 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 async function analyzeContent(content, tabId) {
   try {
     const result = await performAnalysis(content, "browser-email.eml");
+
+    // Update badge with threat level
+    updateBadge(result);
+
+    // Show browser notification for high/critical threats
+    const level = result.score ? result.score.level : "clean";
+    if (level === "critical" || level === "high") {
+      chrome.notifications.create({
+        type: "basic",
+        iconUrl: "icons/icon128.png",
+        title: `PhishGuard: ${level.toUpperCase()} Threat`,
+        message: `Score: ${result.score.total}/100 — ${result.score.level_label || level}`,
+        priority: 2
+      });
+    }
+
+    // Store in recent results
+    storeRecentResult(result);
+
     // Send result to content script to display
     chrome.tabs.sendMessage(tabId, {
       action: "showResult",
@@ -77,6 +96,40 @@ async function analyzeContent(content, tabId) {
       error: error.message
     });
   }
+}
+
+function updateBadge(result) {
+  const level = result.score ? result.score.level : "clean";
+  const total = result.score ? result.score.total : 0;
+
+  const badgeColors = {
+    critical: "#ef4444",
+    high: "#f97316",
+    medium: "#eab308",
+    low: "#22c55e",
+    clean: "#10b981"
+  };
+
+  chrome.action.setBadgeBackgroundColor({ color: badgeColors[level] || "#6b7280" });
+  chrome.action.setBadgeText({ text: String(total) });
+
+  // Clear badge after 30 seconds
+  setTimeout(() => {
+    chrome.action.setBadgeText({ text: "" });
+  }, 30000);
+}
+
+async function storeRecentResult(result) {
+  const { recentResults = [] } = await chrome.storage.local.get("recentResults");
+  recentResults.unshift({
+    report_id: result.report_id,
+    filename: result.filename,
+    score: result.score ? result.score.total : 0,
+    level: result.score ? result.score.level : "clean",
+    timestamp: Date.now()
+  });
+  // Keep only last 10
+  await chrome.storage.local.set({ recentResults: recentResults.slice(0, 10) });
 }
 
 async function performAnalysis(content, filename) {

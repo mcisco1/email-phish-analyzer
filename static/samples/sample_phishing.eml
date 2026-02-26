@@ -1,0 +1,52 @@
+From: "Account Security Team" <security@acc0unt-verify.com>
+To: user@example.com
+Subject: Urgent: Your account will be suspended in 24 hours
+Date: Thu, 20 Feb 2025 14:32:00 +0000
+Message-ID: <fake-msg-id-8372@acc0unt-verify.com>
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="boundary-sample-001"
+Reply-To: noreply@suspicious-domain.xyz
+Return-Path: <bounce@different-domain.net>
+Received: from mail-out.acc0unt-verify.com (192.168.99.42) by mx.example.com
+    with SMTP; Thu, 20 Feb 2025 14:32:05 +0000
+X-Mailer: PHPMailer 6.1.4
+
+--boundary-sample-001
+Content-Type: text/plain; charset="UTF-8"
+
+Dear Valued Customer,
+
+We have detected unauthorized access to your account. Your account will be permanently suspended within 24 hours unless you verify your identity immediately.
+
+Click here to verify your account: http://acc0unt-verify.com/login?redirect=secure
+
+If you do not verify within 24 hours, your account and all associated data will be permanently deleted. This action cannot be undone.
+
+This is an automated security notification. Do not reply to this email.
+
+Regards,
+Account Security Team
+Microsoft Corporation
+
+--boundary-sample-001
+Content-Type: text/html; charset="UTF-8"
+
+<html>
+<body style="font-family: Arial, sans-serif; background: #f5f5f5; padding: 20px;">
+<div style="max-width: 600px; margin: 0 auto; background: white; border-radius: 8px; padding: 30px;">
+<div style="text-align: center; margin-bottom: 20px;">
+<h2 style="color: #d32f2f;">Account Security Alert</h2>
+</div>
+<p>Dear Valued Customer,</p>
+<p>We have detected <strong>unauthorized access</strong> to your account from an unrecognized device. Your account will be <strong style="color: red;">permanently suspended within 24 hours</strong> unless you verify your identity immediately.</p>
+<div style="text-align: center; margin: 30px 0;">
+<a href="http://acc0unt-verify.com/login?redirect=secure" style="background: #1976d2; color: white; padding: 14px 40px; text-decoration: none; border-radius: 5px; font-size: 16px; display: inline-block;">Verify Your Account Now</a>
+</div>
+<p style="color: #666; font-size: 13px;">If you do not verify within 24 hours, your account and all associated data will be permanently deleted. This action cannot be undone.</p>
+<hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+<p style="color: #999; font-size: 11px;">This is an automated security notification from Microsoft Corporation. Do not reply to this email. Reference ID: SEC-2025-8372</p>
+</div>
+</body>
+</html>
+
+--boundary-sample-001--

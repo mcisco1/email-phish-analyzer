@@ -25,6 +25,10 @@
                 <div class="step-dot" data-step="3">3</div>
                 <div class="step-line"></div>
                 <div class="step-dot" data-step="4">4</div>
+                <div class="step-line"></div>
+                <div class="step-dot" data-step="5">5</div>
+                <div class="step-line"></div>
+                <div class="step-dot" data-step="6">6</div>
             </div>
 
             <!-- Step 1: Welcome -->
@@ -149,6 +153,65 @@
                         You currently have <strong>viewer</strong> access. Ask an administrator to upgrade you to <strong>analyst</strong> so you can upload and analyze emails.
                     </div>
                     {% endif %}
+                    <div style="display: flex; justify-content: space-between; margin-top: 20px;">
+                        <button class="btn-back" onclick="nextStep(3)">&larr; Back</button>
+                        <button class="btn-analyze" style="width: auto; padding: 10px 28px;" onclick="nextStep(5)">Next: Try Your First Analysis</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 5: Try Your First Analysis -->
+            <div class="onboarding-step" id="step-5">
+                <div class="panel" style="padding: 28px;">
+                    <h2 style="font-size: 20px; margin-bottom: 8px; text-align: center;">Try Your First Analysis</h2>
+                    <p class="muted" style="text-align: center; max-width: 520px; margin: 0 auto 24px;">
+                        Analyze a sample phishing email to see PhishGuard in action, or upload your own suspicious email.
+                    </p>
+
+                    <div class="onboarding-cards">
+                        <div class="ob-card" style="text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+                            <div class="ob-card-icon">&#128232;</div>
+                            <h3>Use Sample Phishing Email</h3>
+                            <p style="margin-bottom: 16px;">We'll analyze a realistic phishing email so you can see what a full report looks like.</p>
+                            <button class="btn-analyze" style="width: auto; padding: 10px 24px;" id="btn-sample-analyze" onclick="analyzeSample()">Analyze Sample</button>
+                            <div id="sample-status" style="margin-top: 10px; font-size: 12px; display: none;"></div>
+                        </div>
+                        <div class="ob-card" style="text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+                            <div class="ob-card-icon">&#128194;</div>
+                            <h3>Upload Your Own</h3>
+                            <p style="margin-bottom: 16px;">Have a suspicious email? Upload the .eml file and analyze it now.</p>
+                            <form action="/analyze" method="POST" enctype="multipart/form-data" style="display: flex; flex-direction: column; align-items: center; gap: 10px;">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <input type="file" name="eml_file" accept=".eml" class="form-input" style="font-size: 12px; padding: 8px; width: 100%;">
+                                <button type="submit" class="btn-export" style="padding: 10px 24px;">Upload &amp; Analyze</button>
+                            </form>
+                        </div>
+                    </div>
+
+                    <div style="display: flex; justify-content: space-between; margin-top: 20px;">
+                        <button class="btn-back" onclick="nextStep(4)">&larr; Back</button>
+                        <button class="btn-back" onclick="nextStep(6)" style="color: var(--text-dim);">Skip &rarr;</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 6: Understanding Your Report -->
+            <div class="onboarding-step" id="step-6">
+                <div class="panel" style="padding: 28px; text-align: center;">
+                    <div style="font-size: 48px; margin-bottom: 16px;">&#128200;</div>
+                    <h2 style="font-size: 20px; margin-bottom: 8px;">Understanding Your Report</h2>
+                    <p class="muted" style="max-width: 520px; margin: 0 auto 20px;">
+                        When you view a report, you can hover over technical terms like SPF, DKIM, DMARC, IOC, and MITRE ATT&amp;CK to see plain-English explanations. You can also start a guided walkthrough that highlights each section of the report.
+                    </p>
+
+                    <div class="ob-explain" style="text-align: left; max-width: 480px; margin: 0 auto 20px;">
+                        <strong>Tips for your report:</strong><br>
+                        &bull; Hover over any underlined term to see what it means<br>
+                        &bull; Add <code>?guided=1</code> to any report URL for a step-by-step walkthrough<br>
+                        &bull; Export reports as PDF, JSON, or STIX 2.1 for sharing<br>
+                        &bull; Check the Score Breakdown to see exactly what was flagged
+                    </div>
+
                     <form action="/onboarding/complete" method="POST" style="margin-top: 20px;">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <button type="submit" class="btn-analyze" style="max-width: 320px; margin: 0 auto;">Go to Dashboard</button>
@@ -174,6 +237,44 @@
         });
         document.getElementById('step-' + step).classList.add('active');
         window.scrollTo({top: 0, behavior: 'smooth'});
+    }
+
+    function analyzeSample() {
+        var btn = document.getElementById('btn-sample-analyze');
+        var status = document.getElementById('sample-status');
+        btn.disabled = true;
+        btn.textContent = 'Analyzing...';
+        status.style.display = 'block';
+        status.textContent = 'Submitting sample email for analysis...';
+        status.style.color = 'var(--accent)';
+
+        var csrfToken = document.querySelector('input[name="csrf_token"]').value;
+        fetch('/onboarding/analyze-sample', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfToken},
+            body: JSON.stringify({})
+        })
+        .then(function(resp) { return resp.json(); })
+        .then(function(data) {
+            if (data.report_id) {
+                status.textContent = 'Analysis complete! Redirecting to your report...';
+                status.style.color = 'var(--clean)';
+                setTimeout(function() {
+                    window.location.href = '/report/' + data.report_id + '?guided=1';
+                }, 1000);
+            } else if (data.error) {
+                status.textContent = data.error;
+                status.style.color = 'var(--critical)';
+                btn.disabled = false;
+                btn.textContent = 'Analyze Sample';
+            }
+        })
+        .catch(function(err) {
+            status.textContent = 'Error: ' + err.message;
+            status.style.color = 'var(--critical)';
+            btn.disabled = false;
+            btn.textContent = 'Analyze Sample';
+        });
     }
     </script>
 </body>

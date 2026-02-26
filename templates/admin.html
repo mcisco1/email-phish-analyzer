@@ -93,6 +93,93 @@
             {% endfor %}
             </tbody>
         </table>
+
+        <!-- Email Forwarding (IMAP) -->
+        <div class="panel" style="margin-top: 28px;">
+            <h2 class="panel-title">Email Forwarding Integration</h2>
+            <p class="muted" style="font-size: 13px; margin-bottom: 16px;">
+                Users can forward suspicious emails to a shared mailbox for automatic analysis. PhishGuard polls the inbox via IMAP and processes forwarded messages.
+            </p>
+
+            {% if imap_enabled %}
+            <div class="imap-status">
+                <div class="imap-stat">
+                    <div class="imap-stat-value" style="color: var(--clean);">&#10003;</div>
+                    <div class="imap-stat-label">Status</div>
+                </div>
+                <div class="imap-stat">
+                    <div class="imap-stat-value">{{ imap_config.host }}</div>
+                    <div class="imap-stat-label">IMAP Host</div>
+                </div>
+                <div class="imap-stat">
+                    <div class="imap-stat-value">{{ imap_config.user }}</div>
+                    <div class="imap-stat-label">Inbox</div>
+                </div>
+                <div class="imap-stat">
+                    <div class="imap-stat-value">{{ imap_config.interval }}s</div>
+                    <div class="imap-stat-label">Poll Interval</div>
+                </div>
+            </div>
+
+            {% if last_poll %}
+            <div style="margin-bottom: 14px;">
+                <h3 class="sub-title">Last Poll</h3>
+                <div style="display: flex; gap: 20px; font-size: 12px; color: var(--text-dim);">
+                    <span>Time: <strong class="mono" style="color: var(--text);">{{ last_poll.polled_at.strftime('%Y-%m-%d %H:%M:%S') if last_poll.polled_at else 'N/A' }}</strong></span>
+                    <span>Found: <strong style="color: var(--text);">{{ last_poll.emails_found }}</strong></span>
+                    <span>Processed: <strong style="color: var(--text);">{{ last_poll.emails_processed }}</strong></span>
+                    <span>Status: <span class="badge {% if last_poll.status == 'success' %}badge-clean{% else %}badge-critical{% endif %}">{{ last_poll.status }}</span></span>
+                </div>
+                {% if last_poll.errors %}
+                <div class="alert alert-error" style="margin-top: 8px; font-size: 11px;">{{ last_poll.errors }}</div>
+                {% endif %}
+            </div>
+            {% endif %}
+
+            <div style="display: flex; gap: 10px; align-items: center;">
+                <button class="btn-test" id="btn-imap-test" onclick="testImap()">Test Connection</button>
+                <span id="imap-test-result" class="muted" style="font-size: 12px;"></span>
+            </div>
+
+            {% else %}
+            <div class="alert alert-info">
+                IMAP is not configured. Set <code>IMAP_HOST</code>, <code>IMAP_USER</code>, and <code>IMAP_PASS</code> in your environment variables to enable email forwarding.
+            </div>
+            {% endif %}
+        </div>
     </div>
+
+    <script>
+    function testImap() {
+        var btn = document.getElementById('btn-imap-test');
+        var result = document.getElementById('imap-test-result');
+        btn.disabled = true;
+        btn.textContent = 'Testing...';
+        result.textContent = '';
+
+        fetch('/api/admin/imap/test', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token() }}'},
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            btn.disabled = false;
+            btn.textContent = 'Test Connection';
+            if (data.success) {
+                result.textContent = 'Connected! ' + data.total_messages + ' total, ' + data.unseen_messages + ' unseen in ' + data.folder;
+                result.style.color = 'var(--clean)';
+            } else {
+                result.textContent = 'Failed: ' + (data.error || 'Unknown error');
+                result.style.color = 'var(--critical)';
+            }
+        })
+        .catch(function(err) {
+            btn.disabled = false;
+            btn.textContent = 'Test Connection';
+            result.textContent = 'Error: ' + err.message;
+            result.style.color = 'var(--critical)';
+        });
+    }
+    </script>
 </body>
 </html>

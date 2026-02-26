@@ -24,14 +24,14 @@
         </div>
     </nav>
     <div class="container">
-        <div class="verdict-card" style="border-left: 4px solid {{ report.score.level_color }}">
+        <div class="verdict-card" data-section="verdict" style="border-left: 4px solid {{ report.score.level_color }}">
             <div class="verdict-top">
                 <div>
                     <h1 class="verdict-title">{{ report.filename }}</h1>
                     <p class="verdict-sub">{{ report.analyzed_at }} &middot; {{ report.report_id }}</p>
                 </div>
                 <div class="score-ring" style="--score-color: {{ report.score.level_color }}">
-                    <span class="score-num">{{ report.score.total }}</span><span class="score-max">/100</span>
+                    <span class="score-num" data-tip="Threat Score">{{ report.score.total }}</span><span class="score-max">/100</span>
                 </div>
             </div>
             <div class="verdict-level" style="color: {{ report.score.level_color }}">{{ report.score.level_label }}</div>
@@ -40,7 +40,7 @@
         {# --- ML Classification --- #}
         {% if report.ml_classification and report.ml_classification.ml_available %}
         <div class="panel" style="border-left: 3px solid {% if report.ml_classification.ml_verdict == 'phishing' %}var(--critical){% elif report.ml_classification.ml_verdict == 'suspicious' %}var(--high){% else %}var(--clean){% endif %};">
-            <h2 class="panel-title">ML Classification</h2>
+            <h2 class="panel-title"><span data-tip="ML Classification">ML Classification</span></h2>
             <div style="display:flex; align-items:center; gap:16px; flex-wrap:wrap;">
                 <div class="score-ring" style="--score-color: {% if report.ml_classification.ml_confidence >= 70 %}var(--critical){% elif report.ml_classification.ml_confidence >= 40 %}var(--high){% else %}var(--clean){% endif %}; width:60px; height:60px;">
                     <span class="score-num" style="font-size:18px;">{{ report.ml_classification.ml_confidence|round(0)|int }}</span><span class="score-max">%</span>
@@ -58,7 +58,7 @@
         {# --- NLP Analysis --- #}
         {% if report.body.nlp_analysis and report.body.nlp_analysis.overall_nlp_score is defined and report.body.nlp_analysis.overall_nlp_score > 0 %}
         <div class="panel">
-            <h2 class="panel-title">NLP Body Analysis</h2>
+            <h2 class="panel-title"><span data-tip="NLP Analysis">NLP Body Analysis</span></h2>
             <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px;">
                 {% if report.body.nlp_analysis.urgency_score %}<div class="stat-mini {% if report.body.nlp_analysis.urgency_score >= 50 %}critical{% elif report.body.nlp_analysis.urgency_score >= 25 %}high{% endif %}" style="flex:1; min-width:80px;"><span class="stat-num" style="font-size:18px;">{{ report.body.nlp_analysis.urgency_score }}</span><span class="stat-lbl">Urgency</span></div>{% endif %}
                 {% if report.body.nlp_analysis.threat_score %}<div class="stat-mini {% if report.body.nlp_analysis.threat_score >= 50 %}critical{% elif report.body.nlp_analysis.threat_score >= 25 %}high{% endif %}" style="flex:1; min-width:80px;"><span class="stat-num" style="font-size:18px;">{{ report.body.nlp_analysis.threat_score }}</span><span class="stat-lbl">Threat</span></div>{% endif %}
@@ -87,7 +87,7 @@
         {# --- MITRE ATT&CK Mapping --- #}
         {% if report.mitre_mappings %}
         <div class="panel mitre-panel">
-            <h2 class="panel-title">MITRE ATT&amp;CK Mapping <span class="count-badge">{{ report.mitre_mappings | length }}</span></h2>
+            <h2 class="panel-title"><span data-tip="MITRE ATT&CK">MITRE ATT&amp;CK</span> Mapping <span class="count-badge">{{ report.mitre_mappings | length }}</span></h2>
             {% if report.attack_summary %}
             <div class="kill-chain">
                 {% for phase in report.attack_summary.kill_chain_phases %}
@@ -124,7 +124,7 @@
         </div>
         {% endif %}
 
-        <div class="panel">
+        <div class="panel" data-section="breakdown">
             <h2 class="panel-title">Score Breakdown</h2>
             {% if report.score.breakdown %}
             <table class="detail-table">
@@ -138,11 +138,11 @@
             {% else %}<p class="muted">Nothing flagged.</p>{% endif %}
         </div>
 
-        <div class="panel">
+        <div class="panel" data-section="auth">
             <h2 class="panel-title">Headers</h2>
             <div class="detail-grid">
                 <div class="detail-row"><span class="detail-key">From</span><span class="detail-val">{% if report.headers.from_display %}{{ report.headers.from_display }} &lt;{{ report.headers.from_address }}&gt;{% else %}{{ report.headers.from_address }}{% endif %}</span></div>
-                <div class="detail-row"><span class="detail-key">Reply-To</span><span class="detail-val {% if report.headers.reply_to_mismatch %}text-danger{% endif %}">{{ report.headers.reply_to or '&mdash;' }}{% if report.headers.reply_to_mismatch %} <span class="badge badge-high">MISMATCH</span>{% endif %}</span></div>
+                <div class="detail-row"><span class="detail-key">Reply-To</span><span class="detail-val {% if report.headers.reply_to_mismatch %}text-danger{% endif %}">{{ report.headers.reply_to or '&mdash;' }}{% if report.headers.reply_to_mismatch %} <span class="badge badge-high" data-tip="Reply-To Mismatch">MISMATCH</span>{% endif %}</span></div>
                 <div class="detail-row"><span class="detail-key">Return-Path</span><span class="detail-val mono">{{ report.headers.return_path or '&mdash;' }}</span></div>
                 <div class="detail-row"><span class="detail-key">To</span><span class="detail-val">{{ report.headers.to_addresses | join(', ') }}</span></div>
                 <div class="detail-row"><span class="detail-key">Subject</span><span class="detail-val">{{ report.headers.subject }}</span></div>
@@ -154,9 +154,9 @@
 
             <h3 class="sub-title">Authentication</h3>
             <div class="auth-row">
-                <div class="auth-badge {% if report.headers.spf_result == 'pass' %}auth-pass{% elif report.headers.spf_result in ['fail','softfail'] %}auth-fail{% else %}auth-none{% endif %}">SPF: {{ report.headers.spf_result }}</div>
-                <div class="auth-badge {% if report.headers.dkim_result == 'pass' %}auth-pass{% elif report.headers.dkim_result == 'fail' %}auth-fail{% else %}auth-none{% endif %}">DKIM: {{ report.headers.dkim_result }}</div>
-                <div class="auth-badge {% if report.headers.dmarc_result == 'pass' %}auth-pass{% elif report.headers.dmarc_result == 'fail' %}auth-fail{% else %}auth-none{% endif %}">DMARC: {{ report.headers.dmarc_result }}</div>
+                <div class="auth-badge {% if report.headers.spf_result == 'pass' %}auth-pass{% elif report.headers.spf_result in ['fail','softfail'] %}auth-fail{% else %}auth-none{% endif %}" data-tip="SPF"><span data-tip="SPF">SPF</span>: {{ report.headers.spf_result }}</div>
+                <div class="auth-badge {% if report.headers.dkim_result == 'pass' %}auth-pass{% elif report.headers.dkim_result == 'fail' %}auth-fail{% else %}auth-none{% endif %}" data-tip="DKIM"><span data-tip="DKIM">DKIM</span>: {{ report.headers.dkim_result }}</div>
+                <div class="auth-badge {% if report.headers.dmarc_result == 'pass' %}auth-pass{% elif report.headers.dmarc_result == 'fail' %}auth-fail{% else %}auth-none{% endif %}" data-tip="DMARC"><span data-tip="DMARC">DMARC</span>: {{ report.headers.dmarc_result }}</div>
             </div>
 
             {% if report.headers.spf_dns_record %}
@@ -194,7 +194,7 @@
             {% endif %}
         </div>
 
-        <div class="panel">
+        <div class="panel" data-section="urls">
             <h2 class="panel-title">URLs <span class="count-badge">{{ report.urls | length }}</span></h2>
             {% if report.urls %}
             {% for url in report.urls %}
@@ -226,9 +226,9 @@
                 {# --- Browser Detonation Results --- #}
                 {% if url.screenshot_path or url.js_redirects or url.meta_refresh_detected or url.iframes_detected or url.has_credential_form %}
                 <div class="browser-detonation" style="margin-top:10px; padding:10px; background:#1a1a2e; border-radius:6px; border:1px solid #333;">
-                    <div style="font-size:11px; color:#888; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.5px;">Browser Detonation</div>
+                    <div style="font-size:11px; color:#888; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.5px;" data-tip="Browser Detonation">Browser Detonation</div>
                     {% if url.has_credential_form %}
-                    <div style="margin-bottom:6px;"><span class="badge badge-critical">CREDENTIAL FORM</span></div>
+                    <div style="margin-bottom:6px;"><span class="badge badge-critical" data-tip="Credential Harvesting">CREDENTIAL FORM</span></div>
                     {% endif %}
                     {% if url.browser_page_title and url.browser_page_title != url.page_title %}
                     <div class="detonation-meta">browser title: "{{ url.browser_page_title[:80] }}"</div>
@@ -311,7 +311,7 @@
         </div>
         {% endif %}
 
-        <div class="panel">
+        <div class="panel" data-section="attachments">
             <h2 class="panel-title">Attachments <span class="count-badge">{{ report.attachments | length }}</span></h2>
             {% if report.attachments %}
             {% for att in report.attachments %}
@@ -320,7 +320,7 @@
                     <span class="att-name">{{ att.filename }}</span>
                     <span class="att-size">{{ (att.size / 1024) | round(1) }} KB</span>
                     {% if att.malware_match %}<span class="badge badge-critical">MALWARE</span>{% endif %}
-                    {% if att.yara_matches %}<span class="badge badge-high">YARA: {{ att.yara_matches|length }}</span>{% endif %}
+                    {% if att.yara_matches %}<span class="badge badge-high" data-tip="YARA">YARA: {{ att.yara_matches|length }}</span>{% endif %}
                     {% if att.vt_detections > 0 %}<span class="vt-badge vt-hit">VT: {{ att.vt_detections }}/{{ att.vt_total_engines }}</span>{% elif att.vt_permalink %}<span class="vt-badge">VT: clean</span>{% endif %}
                 </div>
                 <div class="att-meta">
@@ -379,7 +379,7 @@
         {# --- Threat Intelligence --- #}
         {% if report.threat_intel and report.threat_intel.summary and report.threat_intel.summary.total_checked > 0 %}
         <div class="panel">
-            <h2 class="panel-title">Threat Intelligence <span class="count-badge">{{ report.threat_intel.summary.feeds_used|length }} feeds</span></h2>
+            <h2 class="panel-title"><span data-tip="Threat Intelligence">Threat Intelligence</span> <span class="count-badge">{{ report.threat_intel.summary.feeds_used|length }} feeds</span></h2>
             <div style="display:flex; gap:10px; margin-bottom:10px; flex-wrap:wrap;">
                 <div class="stat-mini" style="flex:1; min-width:80px;"><span class="stat-num" style="font-size:18px;">{{ report.threat_intel.summary.total_checked }}</span><span class="stat-lbl">Checked</span></div>
                 <div class="stat-mini {% if report.threat_intel.summary.total_flagged > 0 %}critical{% endif %}" style="flex:1; min-width:80px;"><span class="stat-num" style="font-size:18px;">{{ report.threat_intel.summary.total_flagged }}</span><span class="stat-lbl">Flagged</span></div>
@@ -416,8 +416,8 @@
         </div>
         {% endif %}
 
-        <div class="panel">
-            <h2 class="panel-title">IOCs</h2>
+        <div class="panel" data-section="iocs">
+            <h2 class="panel-title"><span data-tip="IOC">IOCs</span></h2>
             <div class="ioc-grid">
                 <div class="ioc-section"><h3 class="ioc-label">IP Addresses</h3>{% for ip in report.iocs.ip_addresses %}<div class="ioc-item">{{ ip }}</div>{% endfor %}{% if not report.iocs.ip_addresses %}<span class="muted">&mdash;</span>{% endif %}</div>
                 <div class="ioc-section"><h3 class="ioc-label">Domains</h3>{% for d in report.iocs.domains %}<div class="ioc-item">{{ d }}</div>{% endfor %}{% if not report.iocs.domains %}<span class="muted">&mdash;</span>{% endif %}</div>
@@ -430,7 +430,7 @@
             {% endif %}
             <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">
                 <a href="/api/iocs/{{ report.report_id }}" class="btn-export" target="_blank">Export IOCs (JSON)</a>
-                <a href="/api/stix/{{ report.report_id }}" class="btn-export" target="_blank">Export STIX 2.1</a>
+                <a href="/api/stix/{{ report.report_id }}" class="btn-export" target="_blank">Export <span data-tip="STIX">STIX 2.1</span></a>
             </div>
         </div>
 
@@ -449,5 +449,6 @@
             </div>
         </div>
     </div>
+    <script src="/static/js/tooltips.js"></script>
 </body>
 </html>

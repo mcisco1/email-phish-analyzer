@@ -362,6 +362,19 @@ SMTP_ENABLED = bool(SMTP_HOST)
 SLACK_DEFAULT_WEBHOOK = os.environ.get("SLACK_WEBHOOK_URL", "")
 
 # ---------------------------------------------------------------------------
+# IMAP Email Forwarding (analyze emails forwarded to a shared inbox)
+# ---------------------------------------------------------------------------
+IMAP_HOST = os.environ.get("IMAP_HOST", "")
+IMAP_PORT = int(os.environ.get("IMAP_PORT", 993))
+IMAP_USER = os.environ.get("IMAP_USER", "")
+IMAP_PASS = os.environ.get("IMAP_PASS", "")
+IMAP_FOLDER = os.environ.get("IMAP_FOLDER", "INBOX")
+IMAP_USE_SSL = os.environ.get("IMAP_USE_SSL", "true").lower() in ("true", "1", "yes")
+IMAP_POLL_INTERVAL = int(os.environ.get("IMAP_POLL_INTERVAL", 60))  # seconds
+IMAP_ENABLED = bool(IMAP_HOST and IMAP_USER and IMAP_PASS)
+IMAP_AUTO_REPLY = os.environ.get("IMAP_AUTO_REPLY", "true").lower() in ("true", "1", "yes")
+
+# ---------------------------------------------------------------------------
 # Application base URL (for links in notifications)
 # ---------------------------------------------------------------------------
 APP_BASE_URL = os.environ.get("APP_BASE_URL", "http://127.0.0.1:5000")

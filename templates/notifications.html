@@ -124,6 +124,27 @@
                 <button type="submit" class="btn-analyze" style="margin-top: 20px; max-width: 240px;">Save Preferences</button>
             </form>
         </div>
+
+        <!-- Test Notification -->
+        <div class="panel" style="margin-top: 14px;">
+            <h2 class="panel-title">Test Notifications</h2>
+            <p class="muted" style="font-size: 12px; margin-bottom: 14px;">
+                Send a test notification to verify your alert channels are working correctly. This will create an in-app notification and send test alerts via email and Slack if configured.
+            </p>
+            <form action="/notifications/test" method="POST" style="display: flex; align-items: center; gap: 12px;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn-test">Send Test Notification</button>
+                <span class="muted" style="font-size: 11px;">Sends to your configured channels</span>
+            </form>
+        </div>
+
+        <!-- Weekly Summary Info -->
+        <div class="panel" style="margin-top: 14px;">
+            <h2 class="panel-title">Weekly Summary Schedule</h2>
+            <p class="muted" style="font-size: 13px; line-height: 1.7;">
+                When enabled above, weekly summary emails are sent every <strong style="color: var(--text);">Monday at 9:00 AM UTC</strong>. The summary includes a breakdown of all analyses from the past 7 days with threat counts, trend comparisons, and a direct link to your dashboard.
+            </p>
+        </div>
     </div>
 </body>
 </html>

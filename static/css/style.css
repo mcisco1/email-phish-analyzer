@@ -582,6 +582,166 @@ body {
 }
 
 /* ======================================================================
+   TOOLTIP ENGINE
+   ====================================================================== */
+
+.pg-tooltip {
+    position: absolute; z-index: 9000;
+    background: #151a26; color: #c9d1d9;
+    border: 1px solid var(--border); border-radius: 6px;
+    padding: 10px 14px; max-width: 340px; font-size: 12px;
+    line-height: 1.65; box-shadow: 0 8px 24px rgba(0,0,0,.45);
+    opacity: 0; transition: opacity .15s;
+    pointer-events: none;
+    font-family: 'Space Grotesk', system-ui, sans-serif;
+}
+.pg-tooltip-visible { opacity: 1; }
+.pg-tooltip-below::after { display: none; }
+
+[data-tip] {
+    border-bottom: 1px dotted var(--text-dim);
+    cursor: help;
+}
+
+/* ======================================================================
+   GUIDED WALKTHROUGH
+   ====================================================================== */
+
+.walkthrough-overlay {
+    position: fixed; inset: 0; z-index: 8000;
+    background: rgba(7,8,13,.65);
+    backdrop-filter: blur(2px);
+}
+
+.walkthrough-highlight {
+    position: relative; z-index: 8001;
+    box-shadow: 0 0 0 4px var(--accent), 0 0 20px rgba(88,166,255,.25);
+    border-radius: 8px;
+}
+
+.walkthrough-card {
+    position: fixed; z-index: 8002;
+    bottom: 32px; left: 50%; transform: translateX(-50%);
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 22px 28px; width: 480px; max-width: 90vw;
+    box-shadow: 0 12px 40px rgba(0,0,0,.5);
+}
+
+.wt-step-count {
+    font-size: 10px; text-transform: uppercase; letter-spacing: .6px;
+    color: var(--accent); font-weight: 600; margin-bottom: 6px;
+    font-family: 'JetBrains Mono', monospace;
+}
+.wt-title { font-size: 16px; font-weight: 700; margin-bottom: 8px; }
+.wt-text { font-size: 13px; color: var(--text-dim); line-height: 1.7; margin-bottom: 18px; }
+.wt-buttons { display: flex; justify-content: space-between; align-items: center; }
+.wt-btn {
+    padding: 8px 20px; border-radius: var(--radius); font-size: 13px;
+    font-weight: 600; cursor: pointer; border: none;
+    font-family: 'Space Grotesk', sans-serif; transition: opacity .15s;
+}
+.wt-btn:hover { opacity: .85; }
+.wt-btn-back { background: transparent; color: var(--text-dim); }
+.wt-btn-next { background: var(--accent); color: #000; }
+.wt-btn-finish { background: var(--clean); color: #000; }
+
+/* ======================================================================
+   PERIOD SELECTOR (Dashboard)
+   ====================================================================== */
+
+.period-selector {
+    display: flex; gap: 6px; margin-bottom: 18px;
+}
+.period-pill {
+    padding: 5px 16px; border-radius: 20px;
+    font-size: 12px; font-weight: 600;
+    color: var(--text-dim); text-decoration: none;
+    background: var(--surface); border: 1px solid var(--border);
+    transition: all .15s;
+    font-family: 'JetBrains Mono', monospace;
+}
+.period-pill:hover { color: var(--text); border-color: var(--text-dim); }
+.period-pill.active {
+    background: var(--accent); color: #000;
+    border-color: var(--accent);
+}
+
+/* ======================================================================
+   SOC NARRATIVE (Dashboard)
+   ====================================================================== */
+
+.soc-narrative {
+    display: flex; align-items: flex-start; gap: 14px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: 8px; padding: 16px 20px; margin-bottom: 18px;
+}
+.soc-narrative-icon { font-size: 24px; flex-shrink: 0; line-height: 1; margin-top: 2px; }
+.soc-narrative-text { font-size: 13px; line-height: 1.7; color: var(--text); }
+
+/* ======================================================================
+   QUICK ACTIONS (Dashboard)
+   ====================================================================== */
+
+.quick-actions {
+    display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+}
+
+/* ======================================================================
+   TEAM ACTIVITY FEED
+   ====================================================================== */
+
+.activity-feed { display: flex; flex-direction: column; gap: 0; }
+.activity-item {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 10px 0; border-bottom: 1px solid var(--border);
+    font-size: 13px;
+}
+.activity-item:last-child { border-bottom: none; }
+.activity-icon {
+    width: 28px; height: 28px; border-radius: 50%;
+    background: var(--surface-2); display: flex;
+    align-items: center; justify-content: center;
+    font-size: 13px; flex-shrink: 0;
+}
+.activity-text { flex: 1; }
+.activity-user { font-weight: 600; color: var(--accent); }
+.activity-time {
+    font-size: 10px; color: var(--text-dim);
+    font-family: 'JetBrains Mono', monospace;
+    white-space: nowrap; flex-shrink: 0;
+}
+
+/* ======================================================================
+   IMAP STATUS (Admin)
+   ====================================================================== */
+
+.imap-status {
+    display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 14px;
+}
+.imap-stat {
+    background: var(--surface-2); border-radius: var(--radius);
+    padding: 12px 18px; flex: 1; min-width: 120px; text-align: center;
+}
+.imap-stat-value {
+    font-size: 20px; font-weight: 700;
+    font-family: 'JetBrains Mono', monospace; color: var(--text);
+}
+.imap-stat-label {
+    font-size: 10px; text-transform: uppercase; letter-spacing: .5px;
+    color: var(--text-dim); margin-top: 2px;
+}
+
+.btn-test {
+    padding: 8px 18px; background: var(--surface-2);
+    border: 1px solid var(--accent); border-radius: var(--radius);
+    color: var(--accent); font-size: 12px; font-weight: 600;
+    cursor: pointer; font-family: 'Space Grotesk', sans-serif;
+    transition: background .15s;
+}
+.btn-test:hover { background: var(--accent-dim); }
+
+/* ======================================================================
    RESPONSIVE
    ====================================================================== */
 

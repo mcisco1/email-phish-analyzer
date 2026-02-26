@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>PhishGuard Settings</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #07080d;
+      color: #c9d1d9;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 14px;
+      line-height: 1.65;
+      display: flex;
+      justify-content: center;
+      padding: 40px 20px;
+    }
+    .container {
+      width: 100%;
+      max-width: 520px;
+    }
+    .header {
+      margin-bottom: 28px;
+    }
+    .header h1 {
+      font-size: 20px;
+      font-weight: 700;
+      color: #c9d1d9;
+      margin-bottom: 4px;
+    }
+    .header .logo {
+      color: #58a6ff;
+      font-family: 'Courier New', monospace;
+    }
+    .header p {
+      font-size: 13px;
+      color: #6e7681;
+    }
+    .card {
+      background: #0d1017;
+      border: 1px solid #1c2333;
+      border-radius: 8px;
+      padding: 24px;
+      margin-bottom: 16px;
+    }
+    .card h2 {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 16px;
+      letter-spacing: -.1px;
+    }
+    .form-group {
+      margin-bottom: 14px;
+    }
+    .form-group label {
+      display: block;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .4px;
+      color: #6e7681;
+      margin-bottom: 6px;
+    }
+    .form-input {
+      width: 100%;
+      padding: 10px 14px;
+      background: #07080d;
+      border: 1px solid #1c2333;
+      border-radius: 6px;
+      color: #c9d1d9;
+      font-size: 13px;
+      font-family: 'Courier New', monospace;
+      outline: none;
+      transition: border-color .15s;
+    }
+    .form-input:focus { border-color: #58a6ff; }
+    .form-input::placeholder { color: #3d4450; }
+    .help-text {
+      font-size: 11px;
+      color: #484f58;
+      margin-top: 4px;
+      line-height: 1.5;
+    }
+    .btn {
+      display: inline-block;
+      padding: 10px 24px;
+      border: none;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity .15s;
+      font-family: inherit;
+    }
+    .btn:hover { opacity: .85; }
+    .btn-primary { background: #58a6ff; color: #000; }
+    .btn-secondary {
+      background: #151a26;
+      color: #58a6ff;
+      border: 1px solid #1c2333;
+      margin-left: 8px;
+    }
+    .btn-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 20px;
+    }
+    .status {
+      padding: 10px 14px;
+      border-radius: 6px;
+      font-size: 12px;
+      margin-top: 14px;
+      display: none;
+    }
+    .status.show { display: block; }
+    .status.success { background: rgba(46,160,67,.08); border: 1px solid rgba(46,160,67,.25); color: #2ea043; }
+    .status.error { background: rgba(248,81,73,.08); border: 1px solid rgba(248,81,73,.25); color: #f85149; }
+    .status.loading { background: rgba(88,166,255,.08); border: 1px solid rgba(88,166,255,.2); color: #58a6ff; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1><span class="logo">&#9673;</span> PhishGuard Extension Settings</h1>
+      <p>Configure connection to your PhishGuard server.</p>
+    </div>
+
+    <div class="card">
+      <h2>Server Connection</h2>
+      <div class="form-group">
+        <label for="serverUrl">PhishGuard Server URL</label>
+        <input type="url" id="serverUrl" class="form-input" placeholder="http://127.0.0.1:5000">
+        <div class="help-text">The URL where your PhishGuard instance is running.</div>
+      </div>
+      <div class="form-group">
+        <label for="apiKey">API Key or JWT Token</label>
+        <input type="password" id="apiKey" class="form-input" placeholder="Your API key or JWT bearer token">
+        <div class="help-text">Found in your PhishGuard account settings. Supports both legacy API keys and JWT tokens.</div>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn btn-primary" id="saveBtn">Save Settings</button>
+        <button class="btn btn-secondary" id="testBtn">Test Connection</button>
+      </div>
+
+      <div id="statusMsg" class="status"></div>
+    </div>
+
+    <div class="card">
+      <h2>How to Use</h2>
+      <div style="font-size: 13px; color: #6e7681; line-height: 1.7;">
+        <p style="margin-bottom: 8px;"><strong style="color: #c9d1d9;">Right-click analysis:</strong> Right-click on any email in Gmail or Outlook Web, then select "Analyze with PhishGuard" from the context menu.</p>
+        <p style="margin-bottom: 8px;"><strong style="color: #c9d1d9;">Toolbar button:</strong> When viewing an email, click the "Analyze" button that appears in the email toolbar.</p>
+        <p style="margin-bottom: 8px;"><strong style="color: #c9d1d9;">Popup upload:</strong> Click the PhishGuard icon in your browser toolbar to upload .eml files directly.</p>
+        <p><strong style="color: #c9d1d9;">Supported inboxes:</strong> Gmail, Outlook Web (outlook.live.com, outlook.office.com, outlook.office365.com).</p>
+      </div>
+    </div>
+  </div>
+
+  <script src="options.js"></script>
+</body>
+</html>

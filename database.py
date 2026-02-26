@@ -640,3 +640,140 @@ def create_notification(user_id, title, message, category="info", link=None):
     db.session.add(notif)
     db.session.commit()
     return notif
+
+
+# =========================================================================
+# THREAT VELOCITY & SOC NARRATIVE
+# =========================================================================
+
+def _scoped_query(base_query, user=None, org_scoped=False):
+    """Apply standard user/org visibility scoping to a query."""
+    if user and org_scoped and user.org_id:
+        if user.is_admin() or user.is_org_admin():
+            base_query = base_query.filter(Analysis.org_id == user.org_id)
+        else:
+            base_query = base_query.filter(Analysis.user_id == user.id)
+    elif user and not user.is_admin():
+        base_query = base_query.filter(Analysis.user_id == user.id)
+    return base_query
+
+
+def get_threat_velocity(days=30, user=None, org_scoped=False):
+    """Compare first half vs second half of a time period to determine trend direction."""
+    now = time.time()
+    midpoint = now - (days * 86400 / 2)
+    start = now - (days * 86400)
+
+    first_q = _scoped_query(
+        Analysis.query.filter(Analysis.analyzed_at >= start, Analysis.analyzed_at < midpoint),
+        user=user, org_scoped=org_scoped,
+    )
+    second_q = _scoped_query(
+        Analysis.query.filter(Analysis.analyzed_at >= midpoint, Analysis.analyzed_at <= now),
+        user=user, org_scoped=org_scoped,
+    )
+
+    first_threats = first_q.filter(Analysis.threat_level.in_(["critical", "high", "medium"])).count()
+    second_threats = second_q.filter(Analysis.threat_level.in_(["critical", "high", "medium"])).count()
+
+    if first_threats == 0 and second_threats == 0:
+        return {"trend": "stable", "change_pct": 0.0}
+    if first_threats == 0:
+        return {"trend": "increasing", "change_pct": 100.0}
+
+    pct = round(((second_threats - first_threats) / max(first_threats, 1)) * 100, 1)
+    if pct > 15:
+        trend = "increasing"
+    elif pct < -15:
+        trend = "decreasing"
+    else:
+        trend = "stable"
+
+    return {"trend": trend, "change_pct": pct}
+
+
+def get_soc_narrative(user=None, org_scoped=False):
+    """Generate a plain-English summary of the current threat landscape."""
+    weekly = get_weekly_comparison(user=user, org_scoped=org_scoped)
+    attacks = get_top_attack_types(limit=1, user=user, org_scoped=org_scoped)
+
+    parts = []
+
+    this_total = weekly["this_week_total"]
+    this_threats = weekly["this_week_threats"]
+
+    if this_total == 0:
+        return "No emails have been analyzed this week. Upload suspicious emails to start building your threat intelligence."
+
+    parts.append(f"This week, {this_total} email{'s were' if this_total != 1 else ' was'} analyzed.")
+
+    if this_threats > 0:
+        parts.append(f"{this_threats} {'were' if this_threats != 1 else 'was'} flagged as high or critical severity")
+        change = weekly["threat_change_pct"]
+        if change > 10:
+            parts[-1] += f" \u2014 a {change}% increase from last week."
+        elif change < -10:
+            parts[-1] += f" \u2014 a {abs(change)}% decrease from last week."
+        else:
+            parts[-1] += " \u2014 roughly the same as last week."
+    else:
+        parts.append("No high-severity threats were detected this week.")
+
+    if attacks:
+        parts.append(f"The most common attack indicator category was {attacks[0]['type']}.")
+
+    return " ".join(parts)
+
+
+# =========================================================================
+# TEAM ACTIVITY & MEMBER STATS
+# =========================================================================
+
+def get_team_activity(org_id, limit=15):
+    """Get recent audit log entries for an organization's members."""
+    member_ids = [u.id for u in User.query.filter_by(org_id=org_id, is_active=True).all()]
+    if not member_ids:
+        return []
+    logs = AuditLog.query.filter(
+        AuditLog.user_id.in_(member_ids),
+        AuditLog.action.in_([
+            "analyze", "upload_async", "export_pdf", "api_analyze",
+            "delete", "api_export_csv", "api_export_stix", "api_export_iocs",
+        ]),
+    ).order_by(AuditLog.timestamp.desc()).limit(limit).all()
+    return [l.to_dict() for l in logs]
+
+
+def get_team_member_stats(org_id):
+    """Get per-member analysis counts for an organization."""
+    members = User.query.filter_by(org_id=org_id, is_active=True).all()
+    result = []
+    for m in members:
+        total = Analysis.query.filter_by(user_id=m.id).count()
+        critical = Analysis.query.filter_by(user_id=m.id, threat_level="critical").count()
+        high = Analysis.query.filter_by(user_id=m.id, threat_level="high").count()
+        result.append({
+            "user_id": m.id,
+            "username": m.username,
+            "email": m.email,
+            "total": total,
+            "critical": critical,
+            "high": high,
+        })
+    return result
+
+
+# =========================================================================
+# IMAP POLL LOG
+# =========================================================================
+
+class ImapPollLog(db.Model):
+    """Log of IMAP polling activity for email forwarding integration."""
+    __tablename__ = "imap_poll_log"
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    polled_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    emails_found = db.Column(db.Integer, default=0)
+    emails_processed = db.Column(db.Integer, default=0)
+    errors = db.Column(db.Text, nullable=True)
+    status = db.Column(db.String(20), default="success")  # success | error

@@ -222,63 +222,226 @@ def send_weekly_summary(app):
                 )
 
 
+def send_test_notification(user):
+    """Send a test notification (in-app + email + Slack if configured)."""
+    from database import create_notification
+
+    results = {"in_app": False, "email": False, "slack": False}
+
+    # In-app notification
+    try:
+        create_notification(
+            user_id=user.id,
+            title="Test Notification",
+            message="This is a test alert from PhishGuard. If you see this, notifications are working.",
+            category="info",
+            link="/notifications",
+        )
+        results["in_app"] = True
+    except Exception:
+        logger.exception("Test in-app notification failed")
+
+    # Email notification
+    prefs = user.notification_prefs
+    if config.SMTP_ENABLED and user.email:
+        html = _build_threat_email("test-sample.eml", "high", 72, "test-000")
+        results["email"] = send_email_alert(
+            user.email,
+            "[PhishGuard] Test Notification",
+            html,
+        )
+    else:
+        results["email"] = None  # not configured
+
+    # Slack notification
+    if prefs and prefs.slack_webhook_url:
+        blocks = _build_slack_blocks("test-sample.eml", "high", 72, "test-000")
+        results["slack"] = send_slack_alert(
+            prefs.slack_webhook_url,
+            "Test notification from PhishGuard",
+            blocks,
+        )
+    else:
+        results["slack"] = None  # not configured
+
+    return results
+
+
 def _build_threat_email(filename, threat_level, score, report_id):
-    """Build HTML email for a threat alert."""
+    """Build professional HTML email for a threat alert."""
     color = {
         "critical": "#ef4444",
         "high": "#f97316",
         "medium": "#eab308",
     }.get(threat_level, "#6b7280")
 
+    bg_color = {
+        "critical": "#1a0505",
+        "high": "#1a0f05",
+        "medium": "#1a1505",
+    }.get(threat_level, "#0d1017")
+
+    actions = []
+    if threat_level == "critical":
+        actions = [
+            "Do NOT click any links or open any attachments from this email",
+            "If you entered credentials, change your password immediately",
+            "Report this to your IT security team",
+            "Block the sender domain across your organization",
+        ]
+    elif threat_level == "high":
+        actions = [
+            "Do not interact with links or attachments in this email",
+            "Report this email to your security team for review",
+            "Check if other team members received similar messages",
+        ]
+    else:
+        actions = [
+            "Exercise caution with links and attachments",
+            "Verify the sender through an alternate channel if unsure",
+        ]
+
+    actions_html = "".join(
+        f'<tr><td style="padding:4px 0 4px 0; font-size:13px; color:#c9d1d9; vertical-align:top;">&#8226;</td>'
+        f'<td style="padding:4px 0 4px 8px; font-size:13px; color:#c9d1d9;">{a}</td></tr>'
+        for a in actions
+    )
+
     return f"""
-    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 500px; margin: 0 auto; background: #0d1017; color: #c9d1d9; border-radius: 8px; overflow: hidden;">
-        <div style="background: {color}; padding: 16px 24px;">
-            <h2 style="margin: 0; color: #fff; font-size: 18px;">{threat_level.upper()} Threat Detected</h2>
+    <div style="font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif; max-width: 560px; margin: 0 auto; background: #0d1017; border-radius: 8px; overflow: hidden; border: 1px solid #1c2333;">
+        <div style="background: {color}; padding: 20px 28px;">
+            <table width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+                <td><h2 style="margin: 0; color: #fff; font-size: 18px; font-weight: 700;">{threat_level.upper()} Threat Detected</h2></td>
+                <td align="right" style="font-size: 12px; color: rgba(255,255,255,.7);">PhishGuard Alert</td>
+            </tr></table>
         </div>
-        <div style="padding: 24px;">
-            <p style="margin: 0 0 12px;"><strong>File:</strong> {filename}</p>
-            <p style="margin: 0 0 12px;"><strong>Threat Score:</strong> <span style="color: {color}; font-size: 24px; font-weight: 700;">{score}/100</span></p>
-            <p style="margin: 0 0 20px;"><strong>Level:</strong> <span style="color: {color};">{threat_level.upper()}</span></p>
-            <a href="{config.APP_BASE_URL}/report/{report_id}" style="display: inline-block; padding: 10px 24px; background: #58a6ff; color: #000; text-decoration: none; border-radius: 6px; font-weight: 600;">View Full Report</a>
+        <div style="padding: 28px;">
+            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom: 20px;">
+                <tr>
+                    <td style="padding: 16px; background: {bg_color}; border-radius: 6px; text-align: center; width: 100px;">
+                        <div style="font-size: 36px; font-weight: 700; color: {color}; line-height: 1;">{score}</div>
+                        <div style="font-size: 11px; color: #6e7681; margin-top: 2px;">/100</div>
+                    </td>
+                    <td style="padding-left: 20px;">
+                        <div style="font-size: 12px; color: #6e7681; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 4px;">Analyzed File</div>
+                        <div style="font-size: 15px; font-weight: 600; color: #c9d1d9; margin-bottom: 8px;">{filename}</div>
+                        <div style="display: inline-block; padding: 3px 10px; border-radius: 3px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .3px; background: {color}20; color: {color};">{threat_level}</div>
+                    </td>
+                </tr>
+            </table>
+
+            <div style="margin-bottom: 20px;">
+                <div style="font-size: 12px; font-weight: 700; color: #6e7681; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 10px;">Recommended Actions</div>
+                <table cellpadding="0" cellspacing="0" border="0">
+                    {actions_html}
+                </table>
+            </div>
+
+            <a href="{config.APP_BASE_URL}/report/{report_id}" style="display: inline-block; padding: 12px 28px; background: #58a6ff; color: #000; text-decoration: none; border-radius: 6px; font-weight: 700; font-size: 14px;">View Full Report</a>
         </div>
-        <div style="padding: 12px 24px; border-top: 1px solid #1c2333; font-size: 12px; color: #6e7681;">
-            PhishGuard Threat Alert
+        <div style="padding: 14px 28px; border-top: 1px solid #1c2333; font-size: 11px; color: #484f58;">
+            This alert was sent by PhishGuard based on your notification preferences.
+            <a href="{config.APP_BASE_URL}/notifications" style="color: #58a6ff; text-decoration: none;">Manage preferences</a>
         </div>
     </div>
     """
 
 
 def _build_weekly_email(username, total, critical, high, medium, clean):
-    """Build HTML email for weekly summary."""
+    """Build professional HTML email for weekly summary."""
+    threat_total = critical + high + medium
+    threat_pct = round((threat_total / total * 100), 1) if total > 0 else 0
+
+    # CSS bar widths for inline chart
+    max_val = max(critical, high, medium, clean, 1)
+    crit_w = round(critical / max_val * 100)
+    high_w = round(high / max_val * 100)
+    med_w = round(medium / max_val * 100)
+    clean_w = round(clean / max_val * 100)
+
+    trend_text = ""
+    if threat_total == 0:
+        trend_text = "No threats were detected this week. Your email security posture looks strong."
+    elif critical > 0:
+        trend_text = f"{critical} critical threat{'s' if critical != 1 else ''} detected this week. Review flagged emails immediately."
+    elif threat_total > 0:
+        trend_text = f"{threat_total} suspicious email{'s' if threat_total != 1 else ''} flagged. Review the details on your dashboard."
+
     return f"""
-    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 500px; margin: 0 auto; background: #0d1017; color: #c9d1d9; border-radius: 8px; overflow: hidden;">
-        <div style="background: #58a6ff; padding: 16px 24px;">
-            <h2 style="margin: 0; color: #000; font-size: 18px;">Weekly Threat Summary</h2>
+    <div style="font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif; max-width: 560px; margin: 0 auto; background: #0d1017; border-radius: 8px; overflow: hidden; border: 1px solid #1c2333;">
+        <div style="background: linear-gradient(135deg, #1a3a5c 0%, #0d1017 100%); padding: 24px 28px;">
+            <table width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+                <td>
+                    <div style="font-size: 11px; color: #58a6ff; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px;">PhishGuard</div>
+                    <h2 style="margin: 0; color: #c9d1d9; font-size: 20px; font-weight: 700;">Weekly Threat Summary</h2>
+                </td>
+                <td align="right" style="font-size: 11px; color: #484f58; vertical-align: bottom;">7-day report</td>
+            </tr></table>
         </div>
-        <div style="padding: 24px;">
-            <p style="margin: 0 0 16px;">Hi {username}, here's your weekly analysis overview:</p>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 20px;">
-                <div style="background: #151a26; padding: 12px; border-radius: 6px; text-align: center;">
-                    <div style="font-size: 28px; font-weight: 700; color: #58a6ff;">{total}</div>
-                    <div style="font-size: 11px; color: #6e7681; text-transform: uppercase;">Total Analyzed</div>
-                </div>
-                <div style="background: #151a26; padding: 12px; border-radius: 6px; text-align: center;">
-                    <div style="font-size: 28px; font-weight: 700; color: #ef4444;">{critical}</div>
-                    <div style="font-size: 11px; color: #6e7681; text-transform: uppercase;">Critical</div>
-                </div>
-                <div style="background: #151a26; padding: 12px; border-radius: 6px; text-align: center;">
-                    <div style="font-size: 28px; font-weight: 700; color: #f97316;">{high}</div>
-                    <div style="font-size: 11px; color: #6e7681; text-transform: uppercase;">High</div>
-                </div>
-                <div style="background: #151a26; padding: 12px; border-radius: 6px; text-align: center;">
-                    <div style="font-size: 28px; font-weight: 700; color: #2ea043;">{clean}</div>
-                    <div style="font-size: 11px; color: #6e7681; text-transform: uppercase;">Clean/Low</div>
-                </div>
+        <div style="padding: 28px;">
+            <p style="margin: 0 0 8px; font-size: 14px; color: #c9d1d9;">Hi {username},</p>
+            <p style="margin: 0 0 24px; font-size: 13px; color: #6e7681; line-height: 1.6;">{trend_text}</p>
+
+            <table width="100%" cellpadding="0" cellspacing="8" border="0" style="margin-bottom: 24px;">
+                <tr>
+                    <td width="50%" style="background: #151a26; padding: 16px; border-radius: 6px; text-align: center;">
+                        <div style="font-size: 32px; font-weight: 700; color: #58a6ff; line-height: 1;">{total}</div>
+                        <div style="font-size: 10px; color: #6e7681; text-transform: uppercase; letter-spacing: .5px; margin-top: 4px;">Total Analyzed</div>
+                    </td>
+                    <td width="50%" style="background: #151a26; padding: 16px; border-radius: 6px; text-align: center;">
+                        <div style="font-size: 32px; font-weight: 700; color: {'#ef4444' if threat_pct > 30 else '#2ea043'}; line-height: 1;">{threat_pct}%</div>
+                        <div style="font-size: 10px; color: #6e7681; text-transform: uppercase; letter-spacing: .5px; margin-top: 4px;">Threat Rate</div>
+                    </td>
+                </tr>
+            </table>
+
+            <div style="margin-bottom: 24px;">
+                <div style="font-size: 12px; font-weight: 700; color: #6e7681; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 12px;">Breakdown</div>
+                <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                    <tr>
+                        <td style="padding: 6px 0; font-size: 12px; color: #c9d1d9; width: 70px;">Critical</td>
+                        <td style="padding: 6px 0;">
+                            <div style="background: #1c2333; border-radius: 3px; height: 16px; overflow: hidden;">
+                                <div style="background: #ef4444; height: 100%; width: {crit_w}%; min-width: {'4px' if critical > 0 else '0'}; border-radius: 3px;"></div>
+                            </div>
+                        </td>
+                        <td style="padding: 6px 0 6px 10px; font-size: 13px; font-weight: 700; color: #ef4444; width: 32px; text-align: right;">{critical}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 6px 0; font-size: 12px; color: #c9d1d9;">High</td>
+                        <td style="padding: 6px 0;">
+                            <div style="background: #1c2333; border-radius: 3px; height: 16px; overflow: hidden;">
+                                <div style="background: #f97316; height: 100%; width: {high_w}%; min-width: {'4px' if high > 0 else '0'}; border-radius: 3px;"></div>
+                            </div>
+                        </td>
+                        <td style="padding: 6px 0 6px 10px; font-size: 13px; font-weight: 700; color: #f97316; width: 32px; text-align: right;">{high}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 6px 0; font-size: 12px; color: #c9d1d9;">Medium</td>
+                        <td style="padding: 6px 0;">
+                            <div style="background: #1c2333; border-radius: 3px; height: 16px; overflow: hidden;">
+                                <div style="background: #eab308; height: 100%; width: {med_w}%; min-width: {'4px' if medium > 0 else '0'}; border-radius: 3px;"></div>
+                            </div>
+                        </td>
+                        <td style="padding: 6px 0 6px 10px; font-size: 13px; font-weight: 700; color: #eab308; width: 32px; text-align: right;">{medium}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 6px 0; font-size: 12px; color: #c9d1d9;">Clean/Low</td>
+                        <td style="padding: 6px 0;">
+                            <div style="background: #1c2333; border-radius: 3px; height: 16px; overflow: hidden;">
+                                <div style="background: #2ea043; height: 100%; width: {clean_w}%; min-width: {'4px' if clean > 0 else '0'}; border-radius: 3px;"></div>
+                            </div>
+                        </td>
+                        <td style="padding: 6px 0 6px 10px; font-size: 13px; font-weight: 700; color: #2ea043; width: 32px; text-align: right;">{clean}</td>
+                    </tr>
+                </table>
             </div>
-            <a href="{config.APP_BASE_URL}/dashboard" style="display: inline-block; padding: 10px 24px; background: #58a6ff; color: #000; text-decoration: none; border-radius: 6px; font-weight: 600;">View Dashboard</a>
+
+            <a href="{config.APP_BASE_URL}/dashboard" style="display: inline-block; padding: 12px 28px; background: #58a6ff; color: #000; text-decoration: none; border-radius: 6px; font-weight: 700; font-size: 14px;">View Dashboard</a>
         </div>
-        <div style="padding: 12px 24px; border-top: 1px solid #1c2333; font-size: 12px; color: #6e7681;">
-            Manage notification preferences in your PhishGuard settings.
+        <div style="padding: 14px 28px; border-top: 1px solid #1c2333; font-size: 11px; color: #484f58;">
+            Sent weekly to subscribed users.
+            <a href="{config.APP_BASE_URL}/notifications" style="color: #58a6ff; text-decoration: none;">Manage preferences</a>
         </div>
     </div>
     """
