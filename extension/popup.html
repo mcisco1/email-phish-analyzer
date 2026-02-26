@@ -166,6 +166,41 @@
       color: #6e7681;
       line-height: 1.6;
     }
+
+    .recent-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px;
+      border-radius: 4px;
+      margin-bottom: 4px;
+      background: #151a26;
+      border: 1px solid #1c2333;
+      text-decoration: none;
+      color: #c9d1d9;
+      transition: background 0.15s;
+    }
+    .recent-item:hover { background: #1c2333; }
+    .recent-score {
+      font-size: 14px;
+      font-weight: 700;
+      font-family: 'Courier New', monospace;
+      width: 28px;
+      text-align: center;
+      flex-shrink: 0;
+    }
+    .recent-info { flex: 1; min-width: 0; }
+    .recent-name {
+      font-size: 11px;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .recent-meta {
+      font-size: 10px;
+      color: #6e7681;
+    }
   </style>
 </head>
 <body>
@@ -204,10 +239,17 @@
       <button class="btn btn-primary" id="saveBtn">Save Settings</button>
     </div>
 
+    <!-- Recent Results -->
+    <div id="recentSection" class="section" style="display: none;">
+      <div class="section-title">Recent Analyses</div>
+      <div id="recentList"></div>
+    </div>
+
     <div class="divider"></div>
     <p class="help-text">
       Right-click on any email in Gmail or Outlook to analyze it.
-      Upload .eml files directly, or paste email headers for analysis.
+      Upload .eml files directly, or click "Analyze Current Email" when viewing an email.
+      <a href="options.html" style="color: #58a6ff; text-decoration: none; display: block; margin-top: 6px;">Extension Settings</a>
     </p>
   </div>
 

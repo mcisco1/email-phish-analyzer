@@ -19,6 +19,9 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
+  // Load recent results
+  loadRecentResults();
+
   // Save settings
   saveBtn.addEventListener("click", () => {
     chrome.runtime.sendMessage({
@@ -98,6 +101,52 @@ document.addEventListener("DOMContentLoaded", () => {
   function showStatus(message, type) {
     statusMsg.textContent = message;
     statusMsg.className = `status ${type}`;
+  }
+
+  function loadRecentResults() {
+    chrome.storage.local.get("recentResults", (data) => {
+      const results = data.recentResults || [];
+      if (results.length === 0) return;
+
+      const section = document.getElementById("recentSection");
+      const list = document.getElementById("recentList");
+      section.style.display = "block";
+
+      const colors = {
+        critical: "#ef4444",
+        high: "#f97316",
+        medium: "#eab308",
+        low: "#22c55e",
+        clean: "#10b981"
+      };
+
+      const serverUrl = serverUrlInput.value || "http://127.0.0.1:5000";
+
+      list.innerHTML = results.slice(0, 3).map(r => {
+        const color = colors[r.level] || "#6b7280";
+        const ago = formatTimeAgo(r.timestamp);
+        return `
+          <a href="${serverUrl}/report/${r.report_id}" target="_blank" class="recent-item">
+            <span class="recent-score" style="color: ${color}">${r.score}</span>
+            <div class="recent-info">
+              <div class="recent-name">${r.filename || 'Analysis'}</div>
+              <div class="recent-meta">${r.level.toUpperCase()} &middot; ${ago}</div>
+            </div>
+          </a>
+        `;
+      }).join("");
+    });
+  }
+
+  function formatTimeAgo(timestamp) {
+    const diff = Date.now() - timestamp;
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return "just now";
+    if (mins < 60) return mins + "m ago";
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return hours + "h ago";
+    const days = Math.floor(hours / 24);
+    return days + "d ago";
   }
 
   function showResult(data) {
