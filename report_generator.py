@@ -18,6 +18,8 @@ import os
 import logging
 from datetime import datetime, timezone
 
+import config
+
 log = logging.getLogger(__name__)
 
 _FONTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static", "fonts")
@@ -49,6 +51,38 @@ _RISK_SEGMENTS = [
     (70, 100, (220, 38, 38)),
 ]
 
+# TLP classification colors
+_TLP_COLORS = {
+    "TLP:RED": (220, 38, 38),
+    "TLP:AMBER": (234, 150, 12),
+    "TLP:GREEN": (34, 163, 72),
+    "TLP:CLEAR": (160, 160, 160),
+}
+
+# Business impact: plain-English explanations by finding category
+_BUSINESS_IMPACT_EXPLANATIONS = {
+    "authentication": (
+        "The email failed sender verification checks. This means the email likely did "
+        "not come from who it claims to be from — a common sign of impersonation."
+    ),
+    "url": (
+        "Suspicious or malicious links were found in this email. Clicking these links "
+        "could lead to credential theft, malware downloads, or fraudulent websites."
+    ),
+    "content": (
+        "The email uses high-pressure language designed to trick the reader into acting "
+        "quickly without thinking — a classic social engineering tactic."
+    ),
+    "attachment": (
+        "One or more attachments contain suspicious characteristics such as executable code, "
+        "macros, or patterns associated with malware. Opening them could compromise your system."
+    ),
+    "header": (
+        "The email's technical metadata shows signs of manipulation or forgery, suggesting "
+        "it was crafted to deceive recipients about its true origin."
+    ),
+}
+
 
 def generate_pdf(report_dict):
     """Generate a professional PDF report from an analysis report dict.
@@ -74,6 +108,11 @@ def generate_pdf(report_dict):
     pdf.add_page()
     toc_entries.append(("Executive Summary", pdf.page_no()))
     _render_executive_summary(pdf, report_dict)
+
+    # --- Business Impact (management-friendly) ---
+    pdf.add_page()
+    toc_entries.append(("What This Means For Your Organization", pdf.page_no()))
+    _render_business_impact(pdf, report_dict)
 
     # --- Risk Rating ---
     toc_entries.append(("Risk Assessment", pdf.page_no()))
@@ -154,10 +193,22 @@ class _PhishGuardPDF:
         if self._is_cover:
             return
         p = self._pdf
+        # TLP classification banner strip
+        tlp = config.REPORT_TLP_LEVEL.upper()
+        tlp_color = _TLP_COLORS.get(tlp, _TLP_COLORS["TLP:AMBER"])
+        p.set_fill_color(*tlp_color)
+        p.rect(0, 0, 210, 3, "F")
+        # TLP label centered in the strip
+        p.set_y(0)
+        p.set_font(self._body_font, "B", 5)
+        p.set_text_color(255, 255, 255)
+        p.cell(0, 3, tlp, align="C")
+
+        company = config.REPORT_COMPANY_NAME.upper()
         p.set_y(8)
         p.set_font(self._body_font, "B", 7)
         p.set_text_color(*_COLORS["accent"])
-        p.cell(95, 5, "PHISHGUARD SECURITY REPORT")
+        p.cell(95, 5, f"{company} SECURITY REPORT")
         p.set_text_color(*_COLORS["gray"])
         p.set_font(self._body_font, "", 7)
         rid = self._report.get("report_id", "")
@@ -177,7 +228,8 @@ class _PhishGuardPDF:
         p.ln(3)
         p.set_font(self._body_font, "", 7)
         p.set_text_color(*_COLORS["gray"])
-        p.cell(95, 4, "Confidential -- PhishGuard Security Analysis")
+        company = config.REPORT_COMPANY_NAME
+        p.cell(95, 4, f"Confidential -- {company} Security Analysis")
         p.cell(95, 4, f"Page {p.page_no()}/{{nb}}", align="R")
 
     def section_title(self, title, size=14):
@@ -249,10 +301,21 @@ def _render_cover_page(pdf, report_dict):
     p.rect(0, 0, 210, 4, "F")
 
     # Branding
+    company = config.REPORT_COMPANY_NAME
+
+    # Optional logo
+    logo = config.REPORT_LOGO_PATH
+    if logo and os.path.isfile(logo):
+        try:
+            p.set_y(30)
+            p.image(logo, x=80, w=50)
+        except Exception:
+            log.debug("Failed to load logo image: %s", logo)
+
     p.set_y(50)
     p.set_font(pdf._body_font, "B", 11)
     p.set_text_color(*_COLORS["cover_accent"])
-    p.cell(0, 8, "PHISHGUARD", align="C", new_x="LMARGIN", new_y="NEXT")
+    p.cell(0, 8, company.upper(), align="C", new_x="LMARGIN", new_y="NEXT")
 
     p.set_font(pdf._body_font, "", 28)
     p.set_text_color(255, 255, 255)
@@ -314,7 +377,13 @@ def _render_cover_page(pdf, report_dict):
     p.set_font(pdf._body_font, "", 8)
     p.set_text_color(100, 120, 150)
     p.cell(0, 5, f"Generated {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}", align="C", new_x="LMARGIN", new_y="NEXT")
-    p.cell(0, 5, "PhishGuard Email Phishing Analyzer", align="C")
+    p.cell(0, 5, f"{company} Email Phishing Analyzer", align="C", new_x="LMARGIN", new_y="NEXT")
+
+    # Confidentiality notice
+    p.ln(4)
+    p.set_font(pdf._body_font, "", 7)
+    p.set_text_color(130, 100, 90)
+    p.multi_cell(0, 4, config.REPORT_CONFIDENTIALITY, align="C", new_x="LMARGIN", new_y="NEXT")
 
 
 # =========================================================================
@@ -512,6 +581,128 @@ def _build_auth_summary(spf, dkim, dmarc):
         )
 
     return "\n\n".join(parts)
+
+
+# =========================================================================
+# Business Impact (management-friendly)
+# =========================================================================
+
+def _render_business_impact(pdf, report_dict):
+    """Render a plain-English business impact section for non-technical management."""
+    pdf.section_title("What This Means For Your Organization", 16)
+
+    score = report_dict.get("score", {})
+    total = score.get("total", 0)
+    level = score.get("level", "clean")
+    breakdown = score.get("breakdown", [])
+
+    p = pdf._pdf
+
+    # --- Business Risk label (color-coded box) ---
+    if total >= 70:
+        risk_label, risk_color = "CRITICAL", _COLORS["critical"]
+    elif total >= 50:
+        risk_label, risk_color = "HIGH", _COLORS["high"]
+    elif total >= 30:
+        risk_label, risk_color = "ELEVATED", _COLORS["medium"]
+    elif total >= 10:
+        risk_label, risk_color = "MODERATE", _COLORS["low"]
+    else:
+        risk_label, risk_color = "LOW", _COLORS["clean"]
+
+    box_y = p.get_y()
+    p.set_fill_color(*risk_color)
+    p.rect(10, box_y, 190, 12, "F")
+    p.set_y(box_y + 2)
+    p.set_font(pdf._body_font, "B", 11)
+    p.set_text_color(255, 255, 255)
+    p.cell(0, 8, f"Business Risk Level: {risk_label}", align="C", new_x="LMARGIN", new_y="NEXT")
+    p.ln(6)
+
+    # --- Plain-English risk assessment ---
+    pdf.sub_title("In Plain English")
+
+    if level == "critical":
+        summary = (
+            "This email is almost certainly an attack. If anyone in your organization has "
+            "interacted with it — clicked a link, opened an attachment, or entered credentials — "
+            "you should treat it as a security incident. Your IT security team should be notified "
+            "immediately, and affected accounts and systems should be secured."
+        )
+    elif level == "high":
+        summary = (
+            "This email shows strong signs of being a phishing attack. While not confirmed as an "
+            "active breach, the indicators are serious enough that no one should interact with it. "
+            "If it was sent to multiple employees, a company-wide warning may be appropriate."
+        )
+    elif level == "medium":
+        summary = (
+            "This email has suspicious characteristics that warrant caution. It could be a targeted "
+            "phishing attempt or it could be a poorly-configured legitimate email. Your security team "
+            "should investigate before anyone acts on it."
+        )
+    elif level == "low":
+        summary = (
+            "This email has minor technical anomalies that are common in legitimate emails. "
+            "No immediate organizational risk was identified, but standard email security "
+            "practices should continue to be followed."
+        )
+    else:
+        summary = (
+            "This email appears to be legitimate. No phishing indicators, malicious links, or "
+            "dangerous attachments were detected. No action is required from a security perspective."
+        )
+
+    pdf.body_text(summary)
+    p.ln(4)
+
+    # --- Category-specific plain-English explanations ---
+    if breakdown:
+        categories_seen = set()
+        explanations = []
+        for item in breakdown:
+            cat = item.get("category", "general")
+            if cat in _BUSINESS_IMPACT_EXPLANATIONS and cat not in categories_seen:
+                categories_seen.add(cat)
+                explanations.append((cat, _BUSINESS_IMPACT_EXPLANATIONS[cat]))
+
+        if explanations:
+            pdf.sub_title("Key Concerns Explained")
+            for cat, explanation in explanations:
+                pdf.check_page_break(18)
+                # Category label
+                p.set_font(pdf._body_font, "B", 10)
+                p.set_text_color(*_COLORS["accent"])
+                p.cell(0, 6, f"  {cat.replace('_', ' ').title()}", new_x="LMARGIN", new_y="NEXT")
+                # Plain-English explanation
+                p.set_font(pdf._body_font, "", 9)
+                p.set_text_color(50, 50, 50)
+                p.multi_cell(0, 5, f"  {explanation}", new_x="LMARGIN", new_y="NEXT")
+                p.ln(3)
+
+    # --- Bottom-line recommendation for management ---
+    p.ln(4)
+    pdf.sub_title("Bottom Line")
+
+    if level in ("critical", "high"):
+        bottom = (
+            "This email should be reported to your IT security team immediately. "
+            "Any employee who may have interacted with it should be contacted. "
+            "Consider this a potential security incident until your security team says otherwise."
+        )
+    elif level == "medium":
+        bottom = (
+            "Forward this email to your IT security team for further investigation. "
+            "Ask employees not to interact with it until it has been cleared."
+        )
+    else:
+        bottom = (
+            "No management action is required at this time. This report is provided "
+            "for documentation and audit purposes."
+        )
+
+    pdf.body_text(bottom)
+    pdf.draw_footer()
 
 
 # =========================================================================
@@ -1155,7 +1346,7 @@ def _render_appendix(pdf, report_dict):
     p.set_font(pdf._body_font, "", 8)
     p.set_text_color(*_COLORS["gray"])
     p.cell(0, 5, "End of Report", align="C", new_x="LMARGIN", new_y="NEXT")
-    p.cell(0, 5, f"Generated by PhishGuard Email Phishing Analyzer -- "
+    p.cell(0, 5, f"Generated by {config.REPORT_COMPANY_NAME} Email Phishing Analyzer -- "
                   f"{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}",
            align="C")
 

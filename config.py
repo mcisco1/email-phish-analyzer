@@ -378,3 +378,15 @@ IMAP_AUTO_REPLY = os.environ.get("IMAP_AUTO_REPLY", "true").lower() in ("true", 
 # Application base URL (for links in notifications)
 # ---------------------------------------------------------------------------
 APP_BASE_URL = os.environ.get("APP_BASE_URL", "http://127.0.0.1:5000")
+
+# ---------------------------------------------------------------------------
+# PDF Report branding
+# ---------------------------------------------------------------------------
+REPORT_COMPANY_NAME = os.environ.get("REPORT_COMPANY_NAME", "PhishGuard")
+REPORT_CONFIDENTIALITY = os.environ.get(
+    "REPORT_CONFIDENTIALITY",
+    "CONFIDENTIAL — This report contains sensitive security information. "
+    "Distribution is restricted to authorized personnel only.",
+)
+REPORT_TLP_LEVEL = os.environ.get("REPORT_TLP_LEVEL", "TLP:AMBER")
+REPORT_LOGO_PATH = os.environ.get("REPORT_LOGO_PATH", "")

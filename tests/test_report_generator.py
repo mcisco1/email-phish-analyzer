@@ -3,6 +3,7 @@
 import pytest
 from unittest.mock import patch
 
+import config
 from report_generator import generate_pdf
 
 
