@@ -1,0 +1,100 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    name: Lint (ruff)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install ruff
+        run: pip install ruff
+
+      - name: Check code style
+        run: ruff check .
+
+      - name: Check formatting
+        run: ruff format --check .
+
+  security:
+    name: Security (bandit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install bandit
+        run: pip install bandit
+
+      - name: Run security scan
+        run: bandit -r . -x ./tests,./extension -ll
+
+  test:
+    name: Tests (pytest)
+    runs-on: ubuntu-latest
+    needs: [lint, security]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Run tests
+        run: |
+          pytest tests/ -v --timeout=60 --tb=short -x \
+                 -m "not slow and not load" \
+                 --ignore=tests/load
+        env:
+          FLASK_ENV: testing
+          DATABASE_URL: "sqlite://"
+          PHISH_SECRET: "ci-test-secret-key"
+
+      - name: Run tests with coverage
+        if: github.event_name == 'pull_request'
+        run: |
+          pytest tests/ --cov=. --cov-report=term-missing \
+                 --timeout=60 --tb=short \
+                 -m "not slow and not load" \
+                 --ignore=tests/load
+        env:
+          FLASK_ENV: testing
+          DATABASE_URL: "sqlite://"
+          PHISH_SECRET: "ci-test-secret-key"
+
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: [test]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy to staging
+        run: |
+          echo "=== Staging deployment placeholder ==="
+          echo "Configure this step for your hosting provider:"
+          echo "  - Railway: railway up"
+          echo "  - Render: auto-deploys from main branch"
+          echo "  - AWS: eb deploy / ecs update-service"
+          echo "  - Docker: docker build + push to registry"

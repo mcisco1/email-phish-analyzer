@@ -15,12 +15,16 @@
             <a href="/history">History</a>
             <a href="/notifications" class="nav-notif">Alerts{% if unread_count %}<span class="notif-badge">{{ unread_count }}</span>{% endif %}</a>
             <a href="/team">Team</a>
-            {% if current_user.is_admin() %}
+            {% if current_user.is_authenticated and current_user.is_admin() %}
             <a href="/admin/users">Users</a>
             <a href="/admin/audit">Audit Log</a>
             {% endif %}
+            {% if current_user.is_authenticated %}
             <span class="nav-user">{{ current_user.username }} ({{ current_user.role }})</span>
             <a href="/logout">Logout</a>
+            {% else %}
+            <a href="/login">Login</a>
+            {% endif %}
         </div>
     </nav>
     <div class="container">
@@ -36,7 +40,7 @@
             <h1>Phishing Email Analyzer</h1>
             <p>Upload raw .eml files for automated threat analysis &mdash; header forensics, URL detonation, attachment sandboxing, MITRE ATT&amp;CK mapping, and IOC extraction.</p>
         </div>
-        {% if current_user.is_analyst() %}
+        {% if current_user.is_authenticated and current_user.is_analyst() %}
         <div class="upload-card">
             <form action="/analyze" method="POST" enctype="multipart/form-data" id="upload-form">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

@@ -1,0 +1,13 @@
+From: broken@
+To:
+Subject:
+Date: not-a-date
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="BROKEN
+
+This is not valid MIME content.
+The boundary is never closed properly.
+--BROKEN
+Content-Type: text/plain
+
+Some body text.

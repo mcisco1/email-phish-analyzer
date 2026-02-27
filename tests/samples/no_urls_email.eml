@@ -1,0 +1,24 @@
+From: colleague@company.com
+To: team@company.com
+Subject: Meeting notes from today
+Date: Mon, 15 Jan 2025 14:30:00 +0000
+Message-ID: <no-urls-001@company.com>
+MIME-Version: 1.0
+Content-Type: text/plain; charset="utf-8"
+Authentication-Results: mx.company.com;
+    spf=pass smtp.mailfrom=colleague@company.com;
+    dkim=pass header.d=company.com;
+    dmarc=pass header.from=company.com
+
+Hi team,
+
+Here are the notes from today's meeting:
+
+1. Project alpha is on track for Q2 delivery
+2. Budget review scheduled for next Friday
+3. New hire orientation is Monday
+
+Please let me know if I missed anything.
+
+Best regards,
+Sarah

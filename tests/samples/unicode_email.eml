@@ -1,0 +1,20 @@
+From: =?UTF-8?B?5bGx55Sw5aSq6YOO?= <yamada@example.jp>
+To: user@company.com
+Subject: =?UTF-8?B?44GK55+l44KJ44Gb?=
+Date: Tue, 14 Jan 2025 03:00:00 +0900
+Message-ID: <unicode-001@example.jp>
+MIME-Version: 1.0
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: 8bit
+
+This email contains unicode characters for testing:
+
+Japanese: お知らせ - 重要な通知
+Russian: Уведомление о безопасности
+Chinese: 安全通知 - 请验证您的账户
+Arabic: إشعار أمني
+Emoji: 🔒 🛡️ ⚠️ 📧
+
+Mixed script test: Gооgle (with Cyrillic о) vs Google (Latin o)
+
+Normal business content follows.

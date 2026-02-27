@@ -15,7 +15,7 @@
             <a href="/history">History</a>
             <a href="/notifications" class="nav-notif">Alerts{% if unread_count %}<span class="notif-badge">{{ unread_count }}</span>{% endif %}</a>
             <a href="/team">Team</a>
-            {% if current_user.is_admin() %}
+            {% if current_user.is_authenticated and current_user.is_admin() %}
             <a href="/admin/users">Users</a>
             <a href="/admin/audit">Audit Log</a>
             {% endif %}

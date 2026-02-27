@@ -1,0 +1,18 @@
+# Testing
+pytest==8.3.4
+pytest-cov==6.0.0
+pytest-mock==3.14.0
+pytest-timeout==2.3.1
+pytest-xdist==3.5.0
+
+# Linting & security
+ruff==0.8.6
+bandit==1.8.3
+
+# Load testing
+locust==2.32.4
+
+# Test utilities
+responses==0.25.6
+freezegun==1.4.0
+factory-boy==3.3.1

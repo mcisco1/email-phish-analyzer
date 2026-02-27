@@ -1,0 +1,20 @@
+From: sender@example.com
+To: recipient@example.com
+Subject: Email with very long header values for stress testing the parser
+Date: Thu, 16 Jan 2025 12:00:00 +0000
+Message-ID: <large-headers-001@example.com>
+MIME-Version: 1.0
+Content-Type: text/plain; charset="utf-8"
+X-Custom-Long-Header: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+Received: from server1.example.com (server1.example.com [192.168.1.1]) by mx.example.com (Postfix) with ESMTP id 12345 for <recipient@example.com>; Thu, 16 Jan 2025 12:00:00 +0000
+Received: from server2.example.com (server2.example.com [192.168.1.2]) by server1.example.com (Postfix) with ESMTP id 12346 for <recipient@example.com>; Thu, 16 Jan 2025 11:59:59 +0000
+Received: from server3.example.com (server3.example.com [192.168.1.3]) by server2.example.com (Postfix) with ESMTP id 12347 for <recipient@example.com>; Thu, 16 Jan 2025 11:59:58 +0000
+Received: from server4.example.com (server4.example.com [192.168.1.4]) by server3.example.com (Postfix) with ESMTP id 12348 for <recipient@example.com>; Thu, 16 Jan 2025 11:59:57 +0000
+Received: from server5.example.com (server5.example.com [192.168.1.5]) by server4.example.com (Postfix) with ESMTP id 12349 for <recipient@example.com>; Thu, 16 Jan 2025 11:59:56 +0000
+Authentication-Results: mx.example.com;
+    spf=pass smtp.mailfrom=sender@example.com;
+    dkim=pass header.d=example.com;
+    dmarc=pass header.from=example.com
+
+This is a test email with very long header values and a long received chain.
+The purpose is to stress test the header parser.

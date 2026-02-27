@@ -1,0 +1,8 @@
+From: headers-only@example.com
+To: recipient@example.com
+Subject: Headers only - no body
+Date: Wed, 15 Jan 2025 09:00:00 +0000
+Message-ID: <no-body-001@example.com>
+MIME-Version: 1.0
+Content-Type: text/plain; charset="utf-8"
+

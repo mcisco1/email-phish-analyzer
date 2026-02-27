@@ -1,0 +1,45 @@
+[project]
+name = "phishguard"
+version = "2.0.0"
+requires-python = ">=3.12"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: full pipeline integration tests",
+    "load: load/performance tests (deselect with '-m \"not load\"')",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+]
+addopts = "--tb=short -q"
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+ignore = [
+    "E501",   # line length handled by formatter
+    "B008",   # function calls in defaults (Flask patterns)
+    "B905",   # zip strict
+    "E722",   # bare except — we use these intentionally in a few places
+    "F401",   # unused imports — some are re-exports
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101", "S105", "S106"]  # asserts and hardcoded passwords OK in tests
+"extension/*" = ["ALL"]               # JS files, not Python
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.bandit]
+exclude_dirs = ["tests", "extension", "venv", ".venv"]
+skips = ["B101"]  # assert used extensively in tests
