@@ -40,6 +40,7 @@ def app():
     test_app = create_app()
     test_app.config["TESTING"] = True
     test_app.config["WTF_CSRF_ENABLED"] = False
+    test_app.config["CELERY_ENABLED"] = False
     test_app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite://"
 
     with test_app.app_context():

@@ -89,6 +89,21 @@ services:
       retries: 5
     command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
 
+  # ---------- Automated Database Backups ----------
+  backup:
+    build: .
+    command: >
+      sh -c 'while true; do python backup_db.py /backups; sleep 86400; done'
+    environment:
+      - DATABASE_URL=postgresql://phishguard:phishguard@postgres:5432/phishguard
+      - BACKUP_RETENTION=7
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - backup_data:/backups
+    restart: unless-stopped
+
   # ---------- MinIO (S3-compatible object storage) ----------
   minio:
     image: minio/minio:latest
@@ -110,3 +125,4 @@ volumes:
   upload_data:
   screenshot_data:
   ml_model_data:
+  backup_data:

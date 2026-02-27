@@ -445,6 +445,7 @@ def enrich_iocs(ip_addresses=None, domains=None, urls=None, config=None):
         return results
 
     feeds_used = set()
+    failed_feeds = []
 
     # --- IP Enrichment ---
     for ip in (ip_addresses or [])[:20]:  # Cap to prevent abuse
@@ -458,6 +459,8 @@ def enrich_iocs(ip_addresses=None, domains=None, urls=None, config=None):
                 feeds_used.add("AbuseIPDB")
                 if result.get("abuse_confidence", 0) > 25:
                     results["summary"]["total_flagged"] += 1
+            elif result and result.get("error"):
+                failed_feeds.append({"feed": "AbuseIPDB", "error": result["error"]})
 
         if otx_key:
             result = check_otx_ip(ip, otx_key)
@@ -466,6 +469,8 @@ def enrich_iocs(ip_addresses=None, domains=None, urls=None, config=None):
                 feeds_used.add("AlienVault OTX")
                 if result.get("is_malicious"):
                     results["summary"]["total_flagged"] += 1
+            elif result and result.get("error"):
+                failed_feeds.append({"feed": "AlienVault OTX", "error": result["error"]})
 
         if ip_feeds:
             results["ip_results"][ip] = ip_feeds
@@ -481,12 +486,16 @@ def enrich_iocs(ip_addresses=None, domains=None, urls=None, config=None):
             feeds_used.add("URLhaus")
             if urlhaus_result.get("is_malicious"):
                 results["summary"]["total_flagged"] += 1
+        elif urlhaus_result and urlhaus_result.get("error"):
+            failed_feeds.append({"feed": "URLhaus", "error": urlhaus_result["error"]})
 
         if otx_key:
             result = check_otx_domain(domain, otx_key)
             if result and not result.get("error"):
                 domain_feeds.append(result)
                 feeds_used.add("AlienVault OTX")
+            elif result and result.get("error"):
+                failed_feeds.append({"feed": "AlienVault OTX", "error": result["error"]})
 
         if domain_feeds:
             results["domain_results"][domain] = domain_feeds
@@ -502,6 +511,8 @@ def enrich_iocs(ip_addresses=None, domains=None, urls=None, config=None):
             feeds_used.add("URLhaus")
             if urlhaus_result.get("is_malicious"):
                 results["summary"]["total_flagged"] += 1
+        elif urlhaus_result and urlhaus_result.get("error"):
+            failed_feeds.append({"feed": "URLhaus", "error": urlhaus_result["error"]})
 
         phishtank_result = check_phishtank(url, phishtank_key)
         if phishtank_result and not phishtank_result.get("error"):
@@ -509,6 +520,8 @@ def enrich_iocs(ip_addresses=None, domains=None, urls=None, config=None):
             feeds_used.add("PhishTank")
             if phishtank_result.get("is_phishing"):
                 results["summary"]["total_flagged"] += 1
+        elif phishtank_result and phishtank_result.get("error"):
+            failed_feeds.append({"feed": "PhishTank", "error": phishtank_result["error"]})
 
         if vt_key:
             vt_result = check_vt_url(url, vt_key)
@@ -517,9 +530,20 @@ def enrich_iocs(ip_addresses=None, domains=None, urls=None, config=None):
                 feeds_used.add("VirusTotal")
                 if vt_result.get("malicious", 0) > 0:
                     results["summary"]["total_flagged"] += 1
+            elif vt_result and vt_result.get("error"):
+                failed_feeds.append({"feed": "VirusTotal", "error": vt_result["error"]})
 
         if url_feeds:
             results["url_results"][url] = url_feeds
 
     results["summary"]["feeds_used"] = sorted(feeds_used)
+    # Deduplicate failed feeds (same feed may fail for multiple IOCs)
+    seen = set()
+    unique_failed = []
+    for ff in failed_feeds:
+        key = ff["feed"]
+        if key not in seen:
+            seen.add(key)
+            unique_failed.append(ff)
+    results["failed_feeds"] = unique_failed
     return results

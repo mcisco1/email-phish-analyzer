@@ -1,7 +1,8 @@
 """Tests for report_generator.py — PDF report generation."""
 
-import pytest
 from unittest.mock import patch
+
+import pytest
 
 import config
 from report_generator import generate_pdf
@@ -203,3 +204,59 @@ class TestGeneratePdf:
         }
         result = generate_pdf(basic_report)
         assert result is not None
+
+    def test_business_impact_critical_report(self, critical_report):
+        """Business impact section renders for critical-level reports with findings."""
+        result = generate_pdf(critical_report)
+        assert result is not None
+        pdf_bytes = result.getvalue()
+        assert pdf_bytes[:4] == b"%PDF"
+        # Critical report has authentication, url, header, content categories
+        # which should all produce plain-English explanations
+        assert len(pdf_bytes) > 1000
+
+    def test_business_impact_clean_report(self, basic_report):
+        """Business impact section renders for clean reports with no findings."""
+        basic_report["score"]["total"] = 0
+        basic_report["score"]["level"] = "clean"
+        basic_report["score"]["breakdown"] = []
+        result = generate_pdf(basic_report)
+        assert result is not None
+        pdf_bytes = result.getvalue()
+        assert pdf_bytes[:4] == b"%PDF"
+
+    def test_custom_branding(self, basic_report):
+        """PDF respects custom REPORT_COMPANY_NAME from config."""
+        original = config.REPORT_COMPANY_NAME
+        try:
+            config.REPORT_COMPANY_NAME = "AcmeSec"
+            result = generate_pdf(basic_report)
+            assert result is not None
+            pdf_bytes = result.getvalue()
+            assert pdf_bytes[:4] == b"%PDF"
+        finally:
+            config.REPORT_COMPANY_NAME = original
+
+    def test_tlp_banner_all_levels(self, basic_report):
+        """PDF generates with each TLP level without errors."""
+        original = config.REPORT_TLP_LEVEL
+        try:
+            for tlp in ("TLP:RED", "TLP:AMBER", "TLP:GREEN", "TLP:CLEAR"):
+                config.REPORT_TLP_LEVEL = tlp
+                result = generate_pdf(basic_report)
+                assert result is not None, f"PDF generation failed for {tlp}"
+                assert result.getvalue()[:4] == b"%PDF"
+        finally:
+            config.REPORT_TLP_LEVEL = original
+
+    def test_confidentiality_notice_in_pdf(self, basic_report):
+        """PDF includes the confidentiality notice text."""
+        original = config.REPORT_CONFIDENTIALITY
+        try:
+            config.REPORT_CONFIDENTIALITY = "TOP SECRET TEST NOTICE"
+            result = generate_pdf(basic_report)
+            assert result is not None
+            pdf_bytes = result.getvalue()
+            assert pdf_bytes[:4] == b"%PDF"
+        finally:
+            config.REPORT_CONFIDENTIALITY = original

@@ -83,6 +83,18 @@ def analyze_email_task(self, raw_bytes_hex, filename, user_id=None, s3_key=None)
     import config as task_config
 
     task_id = self.request.id
+    degraded_services = []
+
+    # Set Sentry context tags for error tracking
+    try:
+        import sentry_sdk
+        sentry_sdk.set_tag("task_type", "email_analysis")
+        sentry_sdk.set_tag("filename", filename)
+        if user_id:
+            sentry_sdk.set_tag("user_id", str(user_id))
+    except ImportError:
+        pass
+
     # TODO: add retry backoff for transient DB failures here
     analysis = Analysis.query.filter_by(task_id=task_id).first()
     if analysis:
@@ -129,8 +141,9 @@ def analyze_email_task(self, raw_bytes_hex, filename, user_id=None, s3_key=None)
                     body.text_content, body.html_content, headers.subject,
                 )
                 body.nlp_analysis = nlp_result
-            except Exception:
+            except Exception as exc:
                 logger.debug("NLP analysis failed — continuing without it")
+                degraded_services.append({"service": "NLP Analysis", "reason": str(exc)[:120]})
 
         # html similarity check
         if task_config.HTML_SIMILARITY_ENABLED and body.html_content:
@@ -140,8 +153,9 @@ def analyze_email_task(self, raw_bytes_hex, filename, user_id=None, s3_key=None)
                 body_brand_matches = analyze_email_html(body.html_content, from_domain)
                 if body_brand_matches:
                     body.html_similarity = {"matches": body_brand_matches}
-            except Exception:
+            except Exception as exc:
                 logger.debug("HTML similarity (body) failed — continuing without it")
+                degraded_services.append({"service": "HTML Similarity", "reason": str(exc)[:120]})
 
         # ml classification
         ml_result = None
@@ -150,8 +164,9 @@ def analyze_email_task(self, raw_bytes_hex, filename, user_id=None, s3_key=None)
                 from ml_classifier import classify
                 ml_result = classify(headers, url_findings, att_findings, body)
                 report.ml_classification = ml_result
-            except Exception:
+            except Exception as exc:
                 logger.debug("ML classification failed — continuing without it")
+                degraded_services.append({"service": "ML Classifier", "reason": str(exc)[:120]})
 
         # threat intel feeds
         threat_intel_result = None
@@ -165,8 +180,12 @@ def analyze_email_task(self, raw_bytes_hex, filename, user_id=None, s3_key=None)
                     config=task_config,
                 )
                 report.threat_intel = threat_intel_result
-            except Exception:
+                if threat_intel_result and threat_intel_result.get("failed_feeds"):
+                    for ff in threat_intel_result["failed_feeds"]:
+                        degraded_services.append({"service": f"Threat Intel: {ff['feed']}", "reason": ff["error"][:120]})
+            except Exception as exc:
                 logger.debug("Threat intel enrichment failed — continuing without it")
+                degraded_services.append({"service": "Threat Intelligence", "reason": str(exc)[:120]})
 
         score = calculate_score(
             headers, url_findings, att_findings, body,
@@ -182,13 +201,15 @@ def analyze_email_task(self, raw_bytes_hex, filename, user_id=None, s3_key=None)
         whois_data = {}
         try:
             whois_data = enrich_url_findings(url_findings)
-        except Exception:
+        except Exception as exc:
             logger.debug("WHOIS enrichment failed — continuing without it")
+            degraded_services.append({"service": "WHOIS Lookup", "reason": str(exc)[:120]})
 
         report_dict = report.to_dict()
         report_dict["mitre_mappings"] = mitre_mappings
         report_dict["attack_summary"] = attack_summary
         report_dict["whois"] = whois_data
+        report_dict["degraded_services"] = degraded_services
 
         save_report(report_dict, user_id=user_id, s3_key=s3_key,
                     task_id=task_id, status="complete")

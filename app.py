@@ -136,6 +136,25 @@ def create_app():
     # --- Debug mode ---
     app.debug = config.DEBUG
 
+    # --- Sentry error tracking (opt-in) ---
+    if config.SENTRY_DSN:
+        try:
+            import sentry_sdk
+            from sentry_sdk.integrations.flask import FlaskIntegration
+            from sentry_sdk.integrations.celery import CeleryIntegration
+            sentry_sdk.init(
+                dsn=config.SENTRY_DSN,
+                integrations=[FlaskIntegration(), CeleryIntegration()],
+                traces_sample_rate=config.SENTRY_TRACES_SAMPLE_RATE,
+                environment=config.SENTRY_ENVIRONMENT,
+                send_default_pii=False,
+            )
+            logger.info("Sentry error tracking enabled")
+        except ImportError:
+            logger.debug("sentry-sdk not installed — skipping Sentry init")
+        except Exception as exc:
+            logger.warning("Sentry init failed: %s — continuing without it", exc)
+
     # --- Initialize extensions ---
     init_db(app)
     login_manager.init_app(app)
@@ -986,6 +1005,16 @@ def _register_web_routes(app):
         except Exception as e:
             checks["redis"] = f"error: {e}"
 
+        # Check Celery worker availability
+        if app.config.get("CELERY_ENABLED"):
+            try:
+                from tasks import celery_app
+                inspector = celery_app.control.inspect(timeout=2)
+                active = inspector.active_queues()
+                checks["celery_workers"] = "ok" if active else "no workers"
+            except Exception as e:
+                checks["celery_workers"] = f"error: {e}"
+
         all_ok = all(v == "ok" for k, v in checks.items() if k != "redis" or config.REDIS_URL != "redis://localhost:6379/0")
         status_code = 200 if all_ok else 503
 
@@ -994,7 +1023,37 @@ def _register_web_routes(app):
             "checks": checks,
             "version": "3.0.0",
             "environment": config.FLASK_ENV,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }), status_code
+
+    @app.route("/health/ready")
+    @csrf.exempt
+    def health_ready():
+        """Readiness probe — returns 200 only when DB + Redis are both reachable."""
+        db_ok = False
+        redis_ok = False
+
+        try:
+            sa_db.session.execute(sa_db.text("SELECT 1"))
+            db_ok = True
+        except Exception:
+            pass
+
+        try:
+            import redis
+            r = redis.from_url(config.REDIS_URL, socket_timeout=2)
+            r.ping()
+            redis_ok = True
+        except Exception:
+            pass
+
+        ready = db_ok and redis_ok
+        return jsonify({
+            "ready": ready,
+            "database": "ok" if db_ok else "unavailable",
+            "redis": "ok" if redis_ok else "unavailable",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }), 200 if ready else 503
 
 
 # =========================================================================
@@ -1262,6 +1321,7 @@ def _register_api_routes(app):
 # =========================================================================
 
 def _run_analysis(raw_bytes, filename):
+    degraded_services = []
     report = AnalysisReport()
     report.report_id = uuid.uuid4().hex[:12]
     report.filename = filename
@@ -1290,8 +1350,9 @@ def _run_analysis(raw_bytes, filename):
                 body.text_content, body.html_content, headers.subject,
             )
             body.nlp_analysis = nlp_result
-        except Exception:
+        except Exception as exc:
             logger.debug("NLP analysis failed — continuing without it")
+            degraded_services.append({"service": "NLP Analysis", "reason": str(exc)[:120]})
 
     # --- HTML similarity analysis on email body ---
     if config.HTML_SIMILARITY_ENABLED and body.html_content:
@@ -1301,8 +1362,9 @@ def _run_analysis(raw_bytes, filename):
             body_brand_matches = analyze_email_html(body.html_content, from_domain)
             if body_brand_matches:
                 body.html_similarity = {"matches": body_brand_matches}
-        except Exception:
+        except Exception as exc:
             logger.debug("HTML similarity (body) failed — continuing without it")
+            degraded_services.append({"service": "HTML Similarity", "reason": str(exc)[:120]})
 
     # --- ML classification ---
     ml_result = None
@@ -1311,8 +1373,9 @@ def _run_analysis(raw_bytes, filename):
             from ml_classifier import classify
             ml_result = classify(headers, url_findings, att_findings, body)
             report.ml_classification = ml_result
-        except Exception:
+        except Exception as exc:
             logger.debug("ML classification failed — continuing without it")
+            degraded_services.append({"service": "ML Classifier", "reason": str(exc)[:120]})
 
     report.urls = [uf.to_dict() for uf in url_findings]
     report.attachments = [af.to_dict() for af in att_findings]
@@ -1332,8 +1395,13 @@ def _run_analysis(raw_bytes, filename):
                 config=config,
             )
             report.threat_intel = threat_intel_result
-        except Exception:
+            # Surface per-feed errors from threat intel into degraded_services
+            if threat_intel_result and threat_intel_result.get("failed_feeds"):
+                for ff in threat_intel_result["failed_feeds"]:
+                    degraded_services.append({"service": f"Threat Intel: {ff['feed']}", "reason": ff["error"][:120]})
+        except Exception as exc:
             logger.debug("Threat intel enrichment failed — continuing without it")
+            degraded_services.append({"service": "Threat Intelligence", "reason": str(exc)[:120]})
 
     score = calculate_score(
         headers, url_findings, att_findings, body,
@@ -1349,13 +1417,15 @@ def _run_analysis(raw_bytes, filename):
     whois_data = {}
     try:
         whois_data = enrich_url_findings(url_findings)
-    except Exception:
+    except Exception as exc:
         logger.debug("WHOIS enrichment failed — continuing without it")
+        degraded_services.append({"service": "WHOIS Lookup", "reason": str(exc)[:120]})
 
     report_dict = report.to_dict()
     report_dict["mitre_mappings"] = mitre_mappings
     report_dict["attack_summary"] = attack_summary
     report_dict["whois"] = whois_data
+    report_dict["degraded_services"] = degraded_services
 
     report._enriched_dict = report_dict
     report.to_dict = lambda: report._enriched_dict

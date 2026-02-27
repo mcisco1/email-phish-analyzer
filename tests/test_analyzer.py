@@ -698,77 +698,90 @@ class TestWHOISLookup(unittest.TestCase):
 
 class TestDatabase(unittest.TestCase):
     def setUp(self):
+        from flask import Flask
         self.tmp = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
         self.db_path = self.tmp.name
         self.tmp.close()
-        db.init_db(self.db_path)
+        self.app = Flask(__name__)
+        self.app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{self.db_path}"
+        self.app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+        self.app.config["TESTING"] = True
+        db.init_db(self.app)
+        self.ctx = self.app.app_context()
+        self.ctx.push()
 
     def tearDown(self):
-        os.unlink(self.db_path)
+        db.db.session.remove()
+        db.db.engine.dispose()
+        self.ctx.pop()
+        try:
+            os.unlink(self.db_path)
+        except PermissionError:
+            pass  # Windows may hold SQLite lock briefly
 
     def test_save_retrieve(self):
         r = {"report_id": "t1", "filename": "a.eml",
              "headers": {"from_address": "a@b.com", "subject": "X"},
              "score": {"level": "high", "total": 65}}
-        db.save_report(r, self.db_path)
-        self.assertIsNotNone(db.get_report("t1", self.db_path))
+        db.save_report(r)
+        self.assertIsNotNone(db.get_report("t1"))
 
     def test_history(self):
         for i in range(3):
             db.save_report({"report_id": f"h{i}", "filename": f"{i}.eml",
                 "headers": {"from_address": "x@y.com", "subject": f"S{i}"},
-                "score": {"level": "medium", "total": 40}}, self.db_path)
-        self.assertEqual(len(db.get_history(10, self.db_path)), 3)
+                "score": {"level": "medium", "total": 40}})
+        self.assertEqual(len(db.get_history(10)), 3)
 
     def test_history_has_display_date(self):
         db.save_report({"report_id": "d1", "filename": "a.eml",
             "headers": {"from_address": "x@y.com", "subject": "A"},
-            "score": {"level": "low", "total": 10}}, self.db_path)
-        history = db.get_history(10, self.db_path)
+            "score": {"level": "low", "total": 10}})
+        history = db.get_history(10)
         self.assertIn("analyzed_at_display", history[0])
         self.assertIn("UTC", history[0]["analyzed_at_display"])
 
     def test_stats(self):
         db.save_report({"report_id": "s1", "filename": "a.eml",
             "headers": {"from_address": "x@y.com", "subject": "A"},
-            "score": {"level": "critical", "total": 80}}, self.db_path)
+            "score": {"level": "critical", "total": 80}})
         db.save_report({"report_id": "s2", "filename": "b.eml",
             "headers": {"from_address": "x@y.com", "subject": "B"},
-            "score": {"level": "low", "total": 15}}, self.db_path)
-        stats = db.get_stats(self.db_path)
+            "score": {"level": "low", "total": 15}})
+        stats = db.get_stats()
         self.assertEqual(stats["total"], 2)
         self.assertEqual(stats["by_level"]["critical"], 1)
         self.assertIn("avg_score", stats)
 
     def test_missing(self):
-        self.assertIsNone(db.get_report("nope", self.db_path))
+        self.assertIsNone(db.get_report("nope"))
 
     def test_delete(self):
         db.save_report({"report_id": "del1", "filename": "a.eml",
             "headers": {"from_address": "x@y.com", "subject": "A"},
-            "score": {"level": "high", "total": 60}}, self.db_path)
-        self.assertTrue(db.delete_report("del1", self.db_path))
-        self.assertIsNone(db.get_report("del1", self.db_path))
+            "score": {"level": "high", "total": 60}})
+        self.assertTrue(db.delete_report("del1"))
+        self.assertIsNone(db.get_report("del1"))
 
     def test_delete_nonexistent(self):
-        self.assertFalse(db.delete_report("nope", self.db_path))
+        self.assertFalse(db.delete_report("nope"))
 
     def test_search(self):
         db.save_report({"report_id": "sr1", "filename": "phishing_test.eml",
             "headers": {"from_address": "bad@evil.com", "subject": "URGENT"},
-            "score": {"level": "critical", "total": 90}}, self.db_path)
+            "score": {"level": "critical", "total": 90}})
         db.save_report({"report_id": "sr2", "filename": "clean.eml",
             "headers": {"from_address": "ok@good.com", "subject": "Hello"},
-            "score": {"level": "clean", "total": 0}}, self.db_path)
-        results = db.search_history("evil", self.db_path)
+            "score": {"level": "clean", "total": 0}})
+        results = db.search_history("evil")
         self.assertEqual(len(results), 1)
         self.assertEqual(results[0]["id"], "sr1")
 
     def test_trend_data(self):
         db.save_report({"report_id": "tr1", "filename": "a.eml",
             "headers": {"from_address": "x@y.com", "subject": "A"},
-            "score": {"level": "high", "total": 55}}, self.db_path)
-        trend = db.get_trend_data(30, self.db_path)
+            "score": {"level": "high", "total": 55}})
+        trend = db.get_trend_data(30)
         self.assertTrue(len(trend) > 0)
 
 

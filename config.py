@@ -390,3 +390,10 @@ REPORT_CONFIDENTIALITY = os.environ.get(
 )
 REPORT_TLP_LEVEL = os.environ.get("REPORT_TLP_LEVEL", "TLP:AMBER")
 REPORT_LOGO_PATH = os.environ.get("REPORT_LOGO_PATH", "")
+
+# ---------------------------------------------------------------------------
+# Sentry Error Tracking (optional)
+# ---------------------------------------------------------------------------
+SENTRY_DSN = os.environ.get("SENTRY_DSN", "")
+SENTRY_TRACES_SAMPLE_RATE = float(os.environ.get("SENTRY_TRACES_SAMPLE_RATE", 0.1))
+SENTRY_ENVIRONMENT = os.environ.get("SENTRY_ENVIRONMENT", FLASK_ENV)

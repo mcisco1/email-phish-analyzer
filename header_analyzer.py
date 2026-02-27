@@ -42,6 +42,7 @@ def _live_spf_lookup(headers):
         elif etype == "NoNameservers":
             headers.anomalies.append(f"No nameservers reachable for {domain}")
         elif etype == "Timeout":
+            headers.anomalies.append(f"DNS timeout for SPF lookup on {domain} (results may be incomplete)")
             log.debug("SPF lookup timed out for %s", domain)
         else:
             log.debug("SPF lookup error for %s: %s", domain, e)
@@ -70,7 +71,10 @@ def _live_dmarc_lookup(headers):
                 return
     except Exception as e:
         etype = type(e).__name__
-        if etype not in ("NXDOMAIN", "NoAnswer", "NoNameservers", "Timeout"):
+        if etype == "Timeout":
+            headers.anomalies.append(f"DNS timeout for DMARC lookup on {domain} (results may be incomplete)")
+            log.debug("DMARC lookup timed out for %s", domain)
+        elif etype not in ("NXDOMAIN", "NoAnswer", "NoNameservers"):
             log.debug("DMARC lookup error for %s: %s", domain, e)
 
 

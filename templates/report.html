@@ -37,6 +37,17 @@
             <div class="verdict-level" style="color: {{ report.score.level_color }}">{{ report.score.level_label }}</div>
         </div>
 
+        {% if report.degraded_services %}
+        <div class="alert alert-warning" style="background: rgba(227,179,65,.08); border: 1px solid rgba(227,179,65,.25); color: var(--medium);">
+            <strong>Note:</strong> Some analysis modules were unavailable during this scan:
+            <ul style="margin: 6px 0 0 18px; font-size: 12px;">
+            {% for ds in report.degraded_services %}
+                <li><strong>{{ ds.service }}</strong>: {{ ds.reason }}</li>
+            {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+
         {# --- ML Classification --- #}
         {% if report.ml_classification and report.ml_classification.ml_available %}
         <div class="panel" style="border-left: 3px solid {% if report.ml_classification.ml_verdict == 'phishing' %}var(--critical){% elif report.ml_classification.ml_verdict == 'suspicious' %}var(--high){% else %}var(--clean){% endif %};">

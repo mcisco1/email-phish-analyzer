@@ -15,11 +15,14 @@ Upload a `.eml` file, forward a suspicious email to a shared inbox, or right-cli
 - [Browser Extension](#browser-extension)
 - [Email Forwarding (IMAP)](#email-forwarding-imap)
 - [Configuration](#configuration)
+- [External API Setup](#external-api-setup)
+- [Environment Variable Reference](#environment-variable-reference)
+- [Monitoring & Maintenance](#monitoring--maintenance)
+- [Running Everything](#running-everything)
 - [API Reference](#api-reference)
 - [Dashboard](#dashboard)
 - [Team & Organization](#team--organization)
 - [Notifications](#notifications)
-- [Testing](#testing)
 - [Custom YARA Rules](#custom-yara-rules)
 - [Project Structure](#project-structure)
 - [License](#license)
@@ -195,16 +198,112 @@ Weighted scoring engine with 55 indicator weights across headers, URLs, attachme
 
 ### Prerequisites
 
-- Python 3.10+
-- pip
+| Requirement | Version | Notes |
+|---|---|---|
+| Python | 3.10+ | 3.12 recommended |
+| pip | latest | Bundled with Python |
+| Git | 2.x+ | For cloning the repository |
+| Docker | 24+ | **Optional** — for production deployment |
 
-### Quick Start
+### Windows
+
+1. **Install Python** from [python.org](https://www.python.org/downloads/). During installation, check **"Add Python to PATH"**.
+
+2. **Clone and set up the project:**
+
+```powershell
+git clone <repository-url>
+cd email-phish-analyzer
+python -m venv venv
+venv\Scripts\activate
+pip install -r requirements.txt
+playwright install chromium
+```
+
+3. **Configure environment:**
+
+```powershell
+copy .env.example .env
+# Open .env in your editor and set PHISH_SECRET, JWT_SECRET_KEY, etc.
+```
+
+4. **Run the application:**
+
+```powershell
+python app.py
+```
+
+Open `http://127.0.0.1:5000`. Default admin credentials: `admin@phishguard.local` / `changeme`.
+
+### macOS
+
+1. **Install Python** (if not already available):
+
+```bash
+brew install python@3.12
+```
+
+2. **Clone and set up the project:**
 
 ```bash
 git clone <repository-url>
 cd email-phish-analyzer
+python3 -m venv venv
+source venv/bin/activate
 pip install -r requirements.txt
 playwright install chromium
+```
+
+3. **Configure environment:**
+
+```bash
+cp .env.example .env
+# Edit .env with your secrets:
+#   PHISH_SECRET=$(python3 -c "import secrets; print(secrets.token_hex(32))")
+#   JWT_SECRET_KEY=$(python3 -c "import secrets; print(secrets.token_hex(32))")
+```
+
+4. **Run the application:**
+
+```bash
+python app.py
+```
+
+Open `http://127.0.0.1:5000`. Default admin credentials: `admin@phishguard.local` / `changeme`.
+
+### Linux (Ubuntu/Debian)
+
+1. **Install system dependencies:**
+
+```bash
+sudo apt update
+sudo apt install python3.12 python3.12-venv python3-pip git
+```
+
+2. **Clone and set up the project:**
+
+```bash
+git clone <repository-url>
+cd email-phish-analyzer
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+playwright install chromium
+playwright install-deps
+```
+
+3. **Configure environment:**
+
+```bash
+cp .env.example .env
+# Generate secrets:
+#   python3 -c "import secrets; print(secrets.token_hex(32))"
+# Paste the output as PHISH_SECRET and JWT_SECRET_KEY in .env
+```
+
+4. **Run the application:**
+
+```bash
 python app.py
 ```
 
@@ -212,10 +311,36 @@ Open `http://127.0.0.1:5000`. Default admin credentials: `admin@phishguard.local
 
 ### Docker Compose (Production)
 
+1. **Install Docker** — [Docker Desktop](https://www.docker.com/products/docker-desktop/) (Windows/macOS) or [Docker Engine](https://docs.docker.com/engine/install/) (Linux).
+
+2. **Clone and configure:**
+
 ```bash
+git clone <repository-url>
+cd email-phish-analyzer
 cp .env.example .env
-# Edit .env with your secrets and API keys
+```
+
+3. **Generate secrets and edit `.env`:**
+
+```bash
+# Generate secure random keys:
+python3 -c "import secrets; print('PHISH_SECRET=' + secrets.token_hex(32))"
+python3 -c "import secrets; print('JWT_SECRET_KEY=' + secrets.token_hex(32))"
+# Paste the output into .env. Set FLASK_ENV=production and configure
+# DATABASE_URL, REDIS_URL, and any API keys you need.
+```
+
+4. **Start all services:**
+
+```bash
 docker compose up -d
+```
+
+5. **Verify services are running:**
+
+```bash
+docker compose ps
 ```
 
 This starts five services:
@@ -227,6 +352,51 @@ This starts five services:
 | postgres | PostgreSQL 16 | 5432 |
 | redis | Redis 7 (caching, task queue, rate limiting) | 6379 |
 | minio | S3-compatible object storage | 9000 |
+
+**Useful Docker commands:**
+
+| Command | Description |
+|---|---|
+| `docker compose logs -f web` | Follow web server logs |
+| `docker compose logs -f worker` | Follow Celery worker logs |
+| `docker compose restart web` | Restart the web server |
+| `docker compose down` | Stop all services |
+| `docker compose down -v` | Stop all services and remove volumes |
+
+### Post-Installation Checklist
+
+- [ ] Change the default admin password (`admin@phishguard.local` / `changeme`)
+- [ ] Configure notification preferences (email/Slack thresholds)
+- [ ] Upload a sample `.eml` file to verify the analysis pipeline works
+- [ ] Install the [browser extension](#browser-extension) for Gmail/Outlook integration
+- [ ] Configure [IMAP forwarding](#email-forwarding-imap) if using a shared analysis inbox
+
+### Running Tests
+
+```bash
+pip install pytest
+python -m pytest tests/ -v
+```
+
+The test suite validates email parsing, URL analysis, HTTP detonation, attachment analysis, VirusTotal integration, header forensics, DNS lookups, IOC extraction, threat scoring, MITRE ATT&CK mapping, STIX 2.1 export, WHOIS lookup, PDF report generation, database operations, and full end-to-end pipeline validation.
+
+### Branch Protection Setup
+
+To require CI checks to pass before merging to `main`:
+
+1. Go to your GitHub repository **Settings** > **Branches**
+2. Click **Add branch protection rule**
+3. Set **Branch name pattern** to `main`
+4. Enable **Require status checks to pass before merging**
+5. Search for and select these required checks:
+   - `lint` — ruff code quality checks
+   - `security` — bandit security analysis
+   - `test` — pytest test suite
+6. Enable **Require branches to be up to date before merging**
+7. *(Optional)* Enable **Require a pull request before merging** and set the required number of approvals
+8. Click **Save changes**
+
+Once configured, no one can push directly to `main` — all changes must pass lint, security, and test checks via a pull request.
 
 ---
 
@@ -334,6 +504,190 @@ THREAT_INTEL_ENABLED=false           # External threat intel feeds
 
 ---
 
+## External API Setup
+
+All external APIs are optional. PhishGuard degrades gracefully when keys are absent.
+
+### VirusTotal
+
+1. Create a free account at [virustotal.com](https://www.virustotal.com/gui/join-us)
+2. Go to your profile → API Key
+3. Copy the API key and set `VT_API_KEY` in `.env`
+4. **Rate limit:** Free tier allows 4 requests/minute, 500/day
+
+### AbuseIPDB
+
+1. Create a free account at [abuseipdb.com](https://www.abuseipdb.com/register)
+2. Go to Account → API → Create Key
+3. Copy the key and set `ABUSEIPDB_API_KEY` in `.env`
+4. Set `THREAT_INTEL_ENABLED=true`
+5. **Rate limit:** Free tier allows 1,000 checks/day
+
+### AlienVault OTX
+
+1. Create a free account at [otx.alienvault.com](https://otx.alienvault.com/accounts/signup)
+2. Go to Settings → API Integration → OTX Key
+3. Copy the key and set `OTX_API_KEY` in `.env`
+4. Set `THREAT_INTEL_ENABLED=true`
+5. **Rate limit:** 10,000 requests/day
+
+### PhishTank
+
+1. Create a free account at [phishtank.org](https://phishtank.org/register.php)
+2. Go to Developer Information → Manage Applications → Create Application
+3. Copy the app key and set `PHISHTANK_API_KEY` in `.env`
+4. Set `THREAT_INTEL_ENABLED=true`
+5. **Rate limit:** Be polite (1 request/second recommended)
+
+---
+
+## Environment Variable Reference
+
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `FLASK_ENV` | No | `production` | `development`, `staging`, or `production` |
+| `PHISH_SECRET` | **Yes** | random | Flask secret key (set a stable value in production) |
+| `DATABASE_URL` | No | SQLite | PostgreSQL connection string for production |
+| `REDIS_URL` | No | `redis://localhost:6379/0` | Redis connection for caching and task queue |
+| `CELERY_BROKER_URL` | No | `REDIS_URL` | Celery broker URL |
+| `CELERY_RESULT_BACKEND` | No | `REDIS_URL` | Celery result backend URL |
+| `S3_ENDPOINT_URL` | No | — | S3/MinIO endpoint for file storage |
+| `S3_ACCESS_KEY` | No | — | S3 access key |
+| `S3_SECRET_KEY` | No | — | S3 secret key |
+| `S3_BUCKET` | No | `phishguard-uploads` | S3 bucket name |
+| `JWT_SECRET_KEY` | **Yes** | `PHISH_SECRET` | JWT signing key (set separately in production) |
+| `JWT_ACCESS_MINUTES` | No | `30` | JWT access token lifetime |
+| `JWT_REFRESH_DAYS` | No | `7` | JWT refresh token lifetime |
+| `SESSION_TIMEOUT_MINUTES` | No | `60` | Browser session timeout |
+| `ADMIN_EMAIL` | No | `admin@phishguard.local` | Default admin email (created on first startup) |
+| `ADMIN_PASSWORD` | No | `changeme` | Default admin password |
+| `VT_API_KEY` | No | — | VirusTotal API key |
+| `ABUSEIPDB_API_KEY` | No | — | AbuseIPDB API key |
+| `OTX_API_KEY` | No | — | AlienVault OTX API key |
+| `PHISHTANK_API_KEY` | No | — | PhishTank API key |
+| `THREAT_INTEL_ENABLED` | No | `false` | Enable external threat intel feeds |
+| `GOOGLE_CLIENT_ID` | No | — | Google OAuth 2.0 client ID |
+| `GOOGLE_CLIENT_SECRET` | No | — | Google OAuth 2.0 client secret |
+| `MICROSOFT_CLIENT_ID` | No | — | Microsoft OAuth 2.0 client ID |
+| `MICROSOFT_CLIENT_SECRET` | No | — | Microsoft OAuth 2.0 client secret |
+| `BROWSER_DETONATION_ENABLED` | No | `true` | Enable Playwright headless browser |
+| `YARA_ENABLED` | No | `true` | Enable YARA rule scanning |
+| `ML_CLASSIFIER_ENABLED` | No | `true` | Enable ML phishing classifier |
+| `NLP_ANALYSIS_ENABLED` | No | `true` | Enable NLP body analysis |
+| `HTML_SIMILARITY_ENABLED` | No | `true` | Enable brand impersonation detection |
+| `SMTP_HOST` | No | — | SMTP server for email alerts |
+| `SMTP_PORT` | No | `587` | SMTP port |
+| `SMTP_USER` | No | — | SMTP username |
+| `SMTP_PASS` | No | — | SMTP password |
+| `SMTP_FROM` | No | `noreply@phishguard.local` | Sender address for email alerts |
+| `SLACK_WEBHOOK_URL` | No | — | Default Slack webhook for alerts |
+| `IMAP_HOST` | No | — | IMAP server for email forwarding |
+| `IMAP_USER` | No | — | IMAP username |
+| `IMAP_PASS` | No | — | IMAP password |
+| `IMAP_POLL_INTERVAL` | No | `60` | Seconds between IMAP polls |
+| `SENTRY_DSN` | No | — | Sentry DSN for error tracking |
+| `SENTRY_TRACES_SAMPLE_RATE` | No | `0.1` | Sentry performance tracing sample rate (0.0–1.0) |
+| `SENTRY_ENVIRONMENT` | No | `FLASK_ENV` | Sentry environment tag |
+| `APP_BASE_URL` | No | `http://127.0.0.1:5000` | Base URL for notification links |
+| `BACKUP_RETENTION` | No | `7` | Number of database backups to retain |
+
+---
+
+## Monitoring & Maintenance
+
+### Sentry Error Tracking
+
+1. Create a project at [sentry.io](https://sentry.io) (free tier available)
+2. Copy the DSN from Project Settings → Client Keys
+3. Set `SENTRY_DSN` in `.env`
+4. Errors and performance traces are sent automatically. Set `SENTRY_TRACES_SAMPLE_RATE=0.1` (10%) to control volume.
+
+### Uptime Monitoring (UptimeRobot)
+
+1. Create a free account at [uptimerobot.com](https://uptimerobot.com)
+2. Add a new HTTP(s) monitor pointing to `https://your-domain.com/health/ready`
+3. Set check interval to 5 minutes
+4. The `/health/ready` endpoint returns `200` when both the database and Redis are reachable, and `503` otherwise
+
+**Available health endpoints:**
+
+| Endpoint | Purpose | When to use |
+|---|---|---|
+| `GET /health` | Liveness probe — app is running | Kubernetes liveness, Docker healthcheck |
+| `GET /health/ready` | Readiness probe — DB + Redis reachable | UptimeRobot, load balancer health checks |
+
+### Database Backups
+
+Backups run automatically in Docker Compose via the `backup` service (daily, retaining 7 backups).
+
+**Manual backup:**
+
+```bash
+python backup_db.py ./backups
+```
+
+**Restore from backup:**
+
+```bash
+pg_restore --host localhost --port 5432 --username phishguard --dbname phishguard --clean backups/phishguard_YYYYMMDD_HHMMSS.dump
+```
+
+**Docker backup restore:**
+
+```bash
+docker compose cp backup:/backups/phishguard_YYYYMMDD_HHMMSS.dump ./
+docker compose exec postgres pg_restore -U phishguard -d phishguard --clean /tmp/backup.dump
+```
+
+---
+
+## Running Everything
+
+### Local Development
+
+```bash
+# 1. Set up environment
+cp .env.example .env
+# Edit .env: set FLASK_ENV=development, generate PHISH_SECRET and JWT_SECRET_KEY
+
+# 2. Install dependencies
+python -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
+pip install -r requirements.txt
+playwright install chromium
+
+# 3. Run the app (uses SQLite, no Redis/Celery needed)
+python app.py
+```
+
+### Docker Compose (Production)
+
+```bash
+# Start all services (web, worker, postgres, redis, minio, backup)
+docker compose up -d
+
+# Check service health
+docker compose ps
+
+# View logs
+docker compose logs -f web
+docker compose logs -f worker
+
+# Stop everything
+docker compose down
+```
+
+### Running Tests
+
+```bash
+pip install pytest
+python -m pytest tests/ -v
+```
+
+Tests use an in-memory SQLite database, disable Celery (synchronous analysis), and don't require Redis, S3, or any external API keys.
+
+---
+
 ## Authentication & Security
 
 - **OAuth 2.0** — Google and Microsoft SSO
@@ -429,17 +783,6 @@ PhishGuard supports multi-tenant organizations:
 - **Configurable thresholds** — set minimum score for alerts, choose which levels trigger email/Slack
 - **Weekly summary** — automated Monday morning digest with threat breakdown, trend comparison, and inline charts
 - **Test button** — verify notification delivery from the preferences page
-
----
-
-## Testing
-
-```bash
-pip install pytest
-python -m pytest tests/ -v
-```
-
-The test suite includes 92 tests covering email parsing, URL analysis, HTTP detonation, attachment analysis, VirusTotal integration, header forensics, DNS lookups, IOC extraction, threat scoring, MITRE ATT&CK mapping, STIX 2.1 export, WHOIS lookup, database operations, and full end-to-end pipeline validation.
 
 ---
 

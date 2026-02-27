@@ -14,8 +14,8 @@ Unicode support and professional typography.
 """
 
 import io
-import os
 import logging
+import os
 from datetime import datetime, timezone
 
 import config

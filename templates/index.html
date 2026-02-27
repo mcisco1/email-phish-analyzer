@@ -40,6 +40,26 @@
             <h1>Phishing Email Analyzer</h1>
             <p>Upload raw .eml files for automated threat analysis &mdash; header forensics, URL detonation, attachment sandboxing, MITRE ATT&amp;CK mapping, and IOC extraction.</p>
         </div>
+        <div class="how-it-works">
+            <h2 class="how-it-works-title">How It Works</h2>
+            <div class="steps-row">
+                <div class="step">
+                    <div class="step-num">1</div>
+                    <h3>Upload</h3>
+                    <p>Drag &amp; drop <code>.eml</code> files, use the browser extension for Gmail/Outlook, or forward suspicious emails to your shared analysis inbox.</p>
+                </div>
+                <div class="step">
+                    <div class="step-num">2</div>
+                    <h3>Analyze</h3>
+                    <p>SPF/DKIM/DMARC validation, URL detonation with headless browser, attachment scanning, ML/NLP classification, and multi-feed threat intelligence.</p>
+                </div>
+                <div class="step">
+                    <div class="step-num">3</div>
+                    <h3>Report</h3>
+                    <p>Get a threat score (0&ndash;100), MITRE ATT&amp;CK mapping, extracted IOCs, downloadable PDF report, and real-time alerts via email or Slack.</p>
+                </div>
+            </div>
+        </div>
         {% if current_user.is_authenticated and current_user.is_analyst() %}
         <div class="upload-card">
             <form action="/analyze" method="POST" enctype="multipart/form-data" id="upload-form">
