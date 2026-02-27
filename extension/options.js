@@ -1,6 +1,4 @@
-/**
- * PhishGuard Extension — Options Page Script
- */
+// options.js — extension settings page
 
 document.addEventListener("DOMContentLoaded", function () {
   var serverUrlInput = document.getElementById("serverUrl");
@@ -9,52 +7,47 @@ document.addEventListener("DOMContentLoaded", function () {
   var testBtn = document.getElementById("testBtn");
   var statusMsg = document.getElementById("statusMsg");
 
-  // Load saved settings
   chrome.storage.sync.get(["serverUrl", "apiKey"], function (items) {
     serverUrlInput.value = items.serverUrl || "http://127.0.0.1:5000";
     apiKeyInput.value = items.apiKey || "";
   });
 
-  // Save settings
   saveBtn.addEventListener("click", function () {
-    var serverUrl = serverUrlInput.value.replace(/\/$/, "");
-    var apiKey = apiKeyInput.value.trim();
+    var url = serverUrlInput.value.replace(/\/$/, "");
+    var key = apiKeyInput.value.trim();
 
-    chrome.storage.sync.set({
-      serverUrl: serverUrl,
-      apiKey: apiKey
-    }, function () {
+    chrome.storage.sync.set({ serverUrl: url, apiKey: key }, function () {
       showStatus("Settings saved successfully.", "success");
     });
   });
 
-  // Test connection
+  /* test connection by sending a dummy analysis request */
   testBtn.addEventListener("click", function () {
-    var serverUrl = serverUrlInput.value.replace(/\/$/, "");
-    var apiKey = apiKeyInput.value.trim();
+    var url = serverUrlInput.value.replace(/\/$/, "");
+    var key = apiKeyInput.value.trim();
 
-    if (!serverUrl) {
+    if (!url) {
       showStatus("Please enter a server URL.", "error");
       return;
     }
-
-    if (!apiKey) {
+    if (!key) {
       showStatus("Please enter an API key.", "error");
       return;
     }
 
     showStatus("Testing connection...", "loading");
+    console.log("[pg] testing connection to", url);
 
-    var headers = { "Content-Type": "application/json" };
-    if (apiKey.startsWith("eyJ")) {
-      headers["Authorization"] = "Bearer " + apiKey;
+    var hdrs = { "Content-Type": "application/json" };
+    if (key.startsWith("eyJ")) {
+      hdrs["Authorization"] = "Bearer " + key;
     } else {
-      headers["X-API-Key"] = apiKey;
+      hdrs["X-API-Key"] = key;
     }
 
-    fetch(serverUrl + "/api/extension/analyze", {
+    fetch(url + "/api/extension/analyze", {
       method: "POST",
-      headers: headers,
+      headers: hdrs,
       body: JSON.stringify({
         eml_content: "From: test@test.com\nSubject: Connection Test\n\nTest",
         filename: "connection-test.eml"

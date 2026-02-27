@@ -1,9 +1,5 @@
-/**
- * PhishGuard Tooltip Engine
- *
- * Lightweight tooltip system for security term explanations.
- * Reads data-tip attributes and shows popovers on hover/focus.
- */
+// tooltips.js — hover explanations for security terms
+// reads data-tip attrs, shows popover on hover/focus
 (function () {
     'use strict';
 
@@ -35,9 +31,9 @@
         var tip = document.createElement('div');
         tip.className = 'pg-tooltip';
         tip.textContent = text;
-
         document.body.appendChild(tip);
 
+        // position calc — tries above first, falls back to below
         var rect = el.getBoundingClientRect();
         var tipRect = tip.getBoundingClientRect();
         var left = rect.left + rect.width / 2 - tipRect.width / 2;
@@ -98,9 +94,7 @@
         init();
     }
 
-    /* ============================================================
-     * GUIDED WALKTHROUGH (activated by ?guided=1 URL parameter)
-     * ============================================================ */
+    // --- guided walkthrough (activated by ?guided=1) ---
     var WALKTHROUGH_STEPS = [
         {
             selector: '.verdict-card',
@@ -191,7 +185,8 @@
             if (finishBtn) finishBtn.addEventListener('click', function () { showStep(WALKTHROUGH_STEPS.length); });
         }
 
-        // Start after a brief delay for page to render
+        // small delay to let report page finish rendering
+        // TODO: use a proper ready check instead of setTimeout
         setTimeout(function () { showStep(0); }, 500);
     }
 

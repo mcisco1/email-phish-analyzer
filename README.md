@@ -1,22 +1,43 @@
 # PhishGuard
 
-**Automated phishing email analysis platform** with ML classification, NLP content analysis, headless browser detonation, YARA scanning, multi-feed threat intelligence, and MITRE ATT&CK mapping.
+**Automated phishing email analysis platform** with ML classification, NLP content analysis, headless browser detonation, YARA scanning, multi-feed threat intelligence, MITRE ATT&CK mapping, a guided onboarding flow, and a Chrome browser extension.
 
-Upload a `.eml` file and receive a comprehensive threat report with confidence scoring, IOC extraction, STIX 2.1 export, and downloadable PDF documentation.
+Upload a `.eml` file, forward a suspicious email to a shared inbox, or right-click an email in Gmail/Outlook — and receive a comprehensive threat report with confidence scoring, IOC extraction, STIX 2.1 export, and downloadable PDF documentation.
 
 ---
 
 ## Table of Contents
 
+- [Features](#features)
 - [Analysis Pipeline](#analysis-pipeline)
 - [Architecture](#architecture)
 - [Getting Started](#getting-started)
+- [Browser Extension](#browser-extension)
+- [Email Forwarding (IMAP)](#email-forwarding-imap)
 - [Configuration](#configuration)
 - [API Reference](#api-reference)
+- [Dashboard](#dashboard)
+- [Team & Organization](#team--organization)
+- [Notifications](#notifications)
 - [Testing](#testing)
 - [Custom YARA Rules](#custom-yara-rules)
 - [Project Structure](#project-structure)
 - [License](#license)
+
+---
+
+## Features
+
+- **Multi-stage analysis pipeline** — header forensics, URL detonation, attachment scanning, ML classification, NLP analysis, browser detonation, YARA rules, threat intel feeds
+- **Guided onboarding** — step-by-step wizard with sample email analysis and interactive report walkthrough with plain-English explanations of security terms
+- **SOC dashboard** — area charts with gradient fills, threat velocity KPI, time period selector (7d/30d/90d), SOC narrative summary, quick action buttons
+- **Browser extension** — Chrome Manifest V3 extension with right-click analysis, toolbar button injection for Gmail and Outlook Web, popup with recent results, badge notifications
+- **Email forwarding** — IMAP inbox polling for automated analysis of forwarded suspicious emails with auto-reply results
+- **Team management** — organizations with roles (owner/admin/member), per-member analysis stats, team activity feed, team CSV export
+- **Notifications** — email alerts, Slack webhooks, in-app notifications, configurable thresholds, weekly summary reports, test notification button
+- **Professional PDF reports** — cover page with branding, executive summary for management, risk visualization bar, recommended actions, full technical findings, Inter + JetBrains Mono fonts
+- **Export formats** — IOC JSON, STIX 2.1, PDF report, CSV bulk export
+- **Authentication** — OAuth 2.0 (Google, Microsoft), local auth with bcrypt, JWT API tokens, RBAC (admin/analyst/viewer)
 
 ---
 
@@ -115,7 +136,7 @@ Weighted scoring engine with 55 indicator weights across headers, URLs, attachme
 
 - **IOC JSON** — Aggregated IPs, domains, URLs, email addresses, and file hashes
 - **STIX 2.1** — Standards-compliant threat intelligence bundle for SIEM/SOAR ingestion (Splunk, QRadar, Sentinel, MISP, OpenCTI)
-- **PDF Report** — Formatted incident documentation with full analysis details
+- **PDF Report** — Professional incident documentation with cover page, executive summary, risk visualization, recommended actions, and full technical findings
 - **CSV** — Bulk export of all historical analysis data
 
 ---
@@ -123,7 +144,7 @@ Weighted scoring engine with 55 indicator weights across headers, URLs, attachme
 ## Architecture
 
 ```
-                            .eml upload
+                            .eml upload / forwarded email / browser extension
                                 │
                 ┌───────────────┼───────────────┐
                 │               │               │
@@ -161,10 +182,11 @@ Weighted scoring engine with 55 indicator weights across headers, URLs, attachme
                          Threat Scoring
                         (55 weighted indicators)
                                 │
-                    ┌───────────┼───────────┐
-                    │           │           │
-                  STIX 2.1   PDF Report   WHOIS
-                  Export     Generation   Enrichment
+              ┌─────────┬──────┼──────┬─────────┐
+              │         │      │      │         │
+           STIX 2.1   PDF   WHOIS  Notify   Auto-Reply
+           Export    Report  Enrich (email/   (IMAP
+                                    slack)    forward)
 ```
 
 ---
@@ -180,7 +202,7 @@ Weighted scoring engine with 55 indicator weights across headers, URLs, attachme
 
 ```bash
 git clone <repository-url>
-cd phishing-analyzer-v2
+cd email-phish-analyzer
 pip install -r requirements.txt
 playwright install chromium
 python app.py
@@ -208,6 +230,62 @@ This starts five services:
 
 ---
 
+## Browser Extension
+
+The Chrome extension (Manifest V3) lets users analyze emails without leaving Gmail or Outlook Web.
+
+### Installation
+
+1. Open `chrome://extensions/` in Chrome
+2. Enable "Developer mode"
+3. Click "Load unpacked" and select the `extension/` directory
+
+### Features
+
+- **Right-click analysis** — select text or right-click on any email page to analyze with PhishGuard
+- **Toolbar button** — injected "Analyze" button appears in Gmail and Outlook email toolbars
+- **Popup** — upload `.eml` files, view last 3 analysis results, configure server connection
+- **Badge notifications** — extension icon shows threat score with color-coded badge
+- **Browser notifications** — desktop alerts for high/critical threats
+
+### Configuration
+
+Click the PhishGuard extension icon > settings link, or right-click the icon > "Options". Enter your PhishGuard server URL and API key (JWT token or legacy API key).
+
+---
+
+## Email Forwarding (IMAP)
+
+PhishGuard can monitor a shared mailbox via IMAP. Users forward suspicious emails to the configured address (e.g., `analyze@yourcompany.com`), and PhishGuard automatically:
+
+1. Polls the inbox on a configurable interval (default: 60 seconds)
+2. Extracts the forwarded email (supports message/rfc822 attachments, .eml attachments, and inline forwards)
+3. Runs the full analysis pipeline
+4. Optionally sends an email reply with the results and a link to the full report
+
+### Setup
+
+Add IMAP credentials to your `.env` file:
+
+```
+IMAP_HOST=imap.gmail.com
+IMAP_PORT=993
+IMAP_USER=analyze@yourcompany.com
+IMAP_PASS=your-app-password
+IMAP_FOLDER=INBOX
+IMAP_USE_SSL=true
+IMAP_POLL_INTERVAL=60
+IMAP_AUTO_REPLY=true
+```
+
+IMAP polling runs as a Celery Beat scheduled task. Ensure the Celery worker and beat scheduler are running:
+
+```bash
+celery -A celery_worker.celery_app worker --beat --loglevel=info
+```
+
+---
+
 ## Configuration
 
 Copy `.env.example` to `.env` and configure. All analysis modules are enabled by default and degrade gracefully when optional dependencies or API keys are absent.
@@ -230,6 +308,17 @@ OTX_API_KEY=                         # AlienVault OTX IOC enrichment
 PHISHTANK_API_KEY=                   # PhishTank verified phishing URLs
 GOOGLE_CLIENT_ID=                    # OAuth 2.0 Google login
 MICROSOFT_CLIENT_ID=                 # OAuth 2.0 Microsoft login
+```
+
+### Notification Config
+
+```
+SMTP_HOST=smtp.gmail.com             # SMTP server for email alerts
+SMTP_PORT=587
+SMTP_USER=alerts@yourcompany.com
+SMTP_PASS=your-app-password
+SMTP_FROM=phishguard@yourcompany.com
+SLACK_WEBHOOK_URL=                   # Default Slack webhook for alerts
 ```
 
 ### Feature Toggles
@@ -275,6 +364,7 @@ POST   /api/auth/revoke             Revoke refresh token
 
 ```
 POST   /api/analyze                 Upload .eml file for analysis
+POST   /api/extension/analyze       Extension analysis endpoint (JSON body)
 GET    /api/job/<task_id>/status    Poll background job status
 GET    /api/report/<id>             Full analysis report (JSON)
 GET    /api/history                 All past analyses
@@ -296,6 +386,49 @@ GET    /api/export/csv              Bulk CSV export
 GET    /api/stats                   Aggregate statistics
 GET    /api/trend?days=30           Daily trend data
 ```
+
+### Admin
+
+```
+POST   /api/admin/imap/test         Test IMAP connectivity (admin only)
+GET    /api/admin/imap/status        IMAP polling status
+```
+
+---
+
+## Dashboard
+
+The SOC dashboard provides an at-a-glance view of your email security posture:
+
+- **Time period selector** — toggle between 7-day, 30-day, and 90-day views
+- **SOC narrative** — plain-English summary of the current threat landscape ("12 emails analyzed this week, 3 critical threats detected, up 50% from last week")
+- **Threat velocity** — trend indicator showing whether threats are increasing, decreasing, or stable
+- **Area chart** — gradient-filled trend chart showing daily threat levels over time
+- **Doughnut chart** — threat level distribution breakdown
+- **Quick actions** — buttons for New Analysis, Export CSV, View History
+
+---
+
+## Team & Organization
+
+PhishGuard supports multi-tenant organizations:
+
+- **Roles** — owner, admin, member with scoped permissions
+- **Org-scoped analysis** — admins see all org analyses, members see their own
+- **Activity feed** — org admins see recent team actions (analyze, delete, export, login)
+- **Member stats** — per-member analysis counts and critical threat counts
+- **Team export** — CSV export of all organization analyses
+
+---
+
+## Notifications
+
+- **Email alerts** — professional HTML emails for critical/high/medium threats with recommended actions
+- **Slack webhooks** — Block Kit formatted alerts with threat details and report links
+- **In-app notifications** — real-time notification center with unread badges
+- **Configurable thresholds** — set minimum score for alerts, choose which levels trigger email/Slack
+- **Weekly summary** — automated Monday morning digest with threat breakdown, trend comparison, and inline charts
+- **Test button** — verify notification delivery from the preferences page
 
 ---
 
@@ -336,7 +469,7 @@ Supported categories: `phishing`, `macro`, `exploit`, `script`, `embedded`, `eva
 ## Project Structure
 
 ```
-phishing-analyzer-v2/
+email-phish-analyzer/
 │
 ├── app.py                    Flask routes, middleware, pipeline orchestration
 ├── config.py                 Feature flags, scoring weights, watchlists, env config
@@ -344,8 +477,9 @@ phishing-analyzer-v2/
 ├── database.py               SQLAlchemy ORM models (PostgreSQL / SQLite)
 ├── auth.py                   OAuth 2.0, JWT, RBAC, Flask-Login integration
 ├── storage.py                S3 / MinIO file storage client
-├── tasks.py                  Celery background task definitions
+├── tasks.py                  Celery background tasks + Beat schedule
 ├── celery_worker.py          Celery worker entry point
+├── helpers.py                Shared utility functions
 │
 ├── email_parser.py           .eml parsing, header/body extraction
 ├── header_analyzer.py        SPF/DKIM/DMARC validation, live DNS lookups
@@ -355,22 +489,48 @@ phishing-analyzer-v2/
 ├── yara_scanner.py           YARA rule compilation and scanning engine
 │
 ├── ml_classifier.py          Random Forest + Logistic Regression ensemble classifier
-├── nlp_analyzer.py           Urgency, threat, impersonation, grammar, social engineering detection
+├── nlp_analyzer.py           Urgency, threat, impersonation, grammar, social engineering
 ├── html_similarity.py        Brand impersonation detection (15 brand signatures)
 ├── threat_intel.py           AbuseIPDB, URLhaus, PhishTank, AlienVault OTX, VirusTotal
 │
 ├── ioc_extractor.py          IOC aggregation (IPs, domains, URLs, hashes, emails)
 ├── threat_scorer.py          Weighted scoring engine (55 indicators)
-├── mitre_mapper.py           MITRE ATT&CK mapping (49 mappings, 28 techniques, 8 tactics)
+├── mitre_mapper.py           MITRE ATT&CK mapping (49 mappings, 28 techniques)
 ├── stix_exporter.py          STIX 2.1 bundle generation
 ├── whois_lookup.py           WHOIS domain intelligence
-├── report_generator.py       PDF report generation
+├── report_generator.py       Professional PDF report generation
+│
+├── imap_poller.py            IMAP inbox polling for forwarded email analysis
+├── notifications.py          Email, Slack, and in-app notification dispatch
+│
+├── extension/                Chrome browser extension (Manifest V3)
+│   ├── manifest.json         Extension manifest
+│   ├── background.js         Service worker, context menu, API calls
+│   ├── content.js            Gmail/Outlook email extraction + toolbar injection
+│   ├── content.css           Injected button + overlay styles
+│   ├── popup.html/js         Extension popup UI
+│   ├── options.html/js       Extension settings page
+│   └── icons/                Extension icons (16/48/128)
+│
+├── static/
+│   ├── css/style.css         Main stylesheet (dark theme)
+│   ├── js/dashboard.js       Dashboard area + doughnut charts
+│   ├── js/tooltips.js        Security term tooltips + guided walkthrough
+│   ├── js/utils.js           Shared frontend utilities
+│   └── fonts/                Inter + JetBrains Mono (PDF reports)
+│
+├── templates/                Jinja2 templates
+│   ├── dashboard.html        SOC dashboard with period selector + narrative
+│   ├── report.html           Analysis report with data-tip tooltips
+│   ├── onboarding.html       6-step guided onboarding wizard
+│   ├── team.html             Team management + activity feed
+│   ├── notifications.html    Notification preferences + test button
+│   ├── admin.html            Admin panel with IMAP status
+│   └── ...                   Login, register, history, etc.
 │
 ├── ml_models/                Trained ML model storage
 ├── yara_rules/               YARA rule files (.yar)
 ├── screenshots/              Browser detonation screenshots
-├── templates/                Jinja2 templates (login, dashboard, report, admin)
-├── static/                   CSS, JavaScript
 ├── tests/                    Test suite with sample .eml files
 │
 ├── Dockerfile                Production container (Python 3.12, Playwright, YARA)

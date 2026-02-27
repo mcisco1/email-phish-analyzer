@@ -1,6 +1,4 @@
-/**
- * PhishGuard Extension — Popup Script
- */
+/* popup.js — PhishGuard extension popup */
 
 document.addEventListener("DOMContentLoaded", () => {
   const serverUrlInput = document.getElementById("serverUrl");
@@ -11,29 +9,27 @@ document.addEventListener("DOMContentLoaded", () => {
   const statusMsg = document.getElementById("statusMsg");
   const resultCard = document.getElementById("resultCard");
 
-  // Load saved settings
-  chrome.runtime.sendMessage({ action: "getSettings" }, (response) => {
-    if (response) {
-      serverUrlInput.value = response.serverUrl || "http://127.0.0.1:5000";
-      apiKeyInput.value = response.apiKey || "";
+  // load saved settings
+  chrome.runtime.sendMessage({ action: "getSettings" }, (resp) => {
+    if (resp) {
+      serverUrlInput.value = resp.serverUrl || "http://127.0.0.1:5000";
+      apiKeyInput.value = resp.apiKey || "";
     }
   });
 
-  // Load recent results
   loadRecentResults();
 
-  // Save settings
   saveBtn.addEventListener("click", () => {
     chrome.runtime.sendMessage({
       action: "saveSettings",
       serverUrl: serverUrlInput.value.replace(/\/$/, ""),
       apiKey: apiKeyInput.value.trim()
-    }, (response) => {
+    }, () => {
       showStatus("Settings saved.", "success");
     });
   });
 
-  // File upload
+  // file upload handler
   fileInput.addEventListener("change", (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -42,7 +38,6 @@ document.addEventListener("DOMContentLoaded", () => {
       showStatus("Please select a .eml file.", "error");
       return;
     }
-
     showStatus("Analyzing...", "loading");
     resultCard.style.display = "none";
 
@@ -64,7 +59,6 @@ document.addEventListener("DOMContentLoaded", () => {
     reader.readAsText(file);
   });
 
-  // Analyze current page email
   analyzePageBtn.addEventListener("click", () => {
     showStatus("Extracting email content...", "loading");
     resultCard.style.display = "none";
@@ -74,7 +68,6 @@ document.addEventListener("DOMContentLoaded", () => {
         showStatus("No active tab found.", "error");
         return;
       }
-
       chrome.tabs.sendMessage(tabs[0].id, { action: "extractEmail" }, (response) => {
         if (chrome.runtime.lastError || !response || !response.emailContent) {
           showStatus("Could not extract email. Make sure you have an email open in Gmail or Outlook.", "error");
@@ -98,8 +91,8 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 
-  function showStatus(message, type) {
-    statusMsg.textContent = message;
+  function showStatus(msg, type) {
+    statusMsg.textContent = msg;
     statusMsg.className = `status ${type}`;
   }
 
@@ -119,61 +112,57 @@ document.addEventListener("DOMContentLoaded", () => {
         low: "#22c55e",
         clean: "#10b981"
       };
+      const base = serverUrlInput.value || "http://127.0.0.1:5000";
 
-      const serverUrl = serverUrlInput.value || "http://127.0.0.1:5000";
-
-      list.innerHTML = results.slice(0, 3).map(r => {
-        const color = colors[r.level] || "#6b7280";
-        const ago = formatTimeAgo(r.timestamp);
-        return `
-          <a href="${serverUrl}/report/${r.report_id}" target="_blank" class="recent-item">
-            <span class="recent-score" style="color: ${color}">${r.score}</span>
+      let html = "";
+      for (const r of results.slice(0, 3)) {
+        const c = colors[r.level] || "#6b7280";
+        const ago = fmtTimeAgo(r.timestamp);
+        html += `
+          <a href="${base}/report/${r.report_id}" target="_blank" class="recent-item">
+            <span class="recent-score" style="color: ${c}">${r.score}</span>
             <div class="recent-info">
               <div class="recent-name">${r.filename || 'Analysis'}</div>
               <div class="recent-meta">${r.level.toUpperCase()} &middot; ${ago}</div>
             </div>
           </a>
         `;
-      }).join("");
+      }
+      list.innerHTML = html;
     });
   }
 
-  function formatTimeAgo(timestamp) {
-    const diff = Date.now() - timestamp;
+  function fmtTimeAgo(ts) {
+    const diff = Date.now() - ts;
     const mins = Math.floor(diff / 60000);
     if (mins < 1) return "just now";
     if (mins < 60) return mins + "m ago";
-    const hours = Math.floor(mins / 60);
-    if (hours < 24) return hours + "h ago";
-    const days = Math.floor(hours / 24);
-    return days + "d ago";
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return hrs + "h ago";
+    return Math.floor(hrs / 24) + "d ago";
   }
 
   function showResult(data) {
     const score = data.score || {};
-    const level = score.level || "clean";
+    const lvl = score.level || "clean";
     const total = score.total || 0;
     const reportId = data.report_id || "";
 
     const colors = {
-      critical: "#ef4444",
-      high: "#f97316",
-      medium: "#eab308",
-      low: "#22c55e",
-      clean: "#10b981"
+      critical: "#ef4444", high: "#f97316", medium: "#eab308",
+      low: "#22c55e", clean: "#10b981"
     };
-
-    const color = colors[level] || "#6b7280";
-    const serverUrl = serverUrlInput.value || "http://127.0.0.1:5000";
+    const color = colors[lvl] || "#6b7280";
+    const base = serverUrlInput.value || "http://127.0.0.1:5000";
 
     let findingsHtml = "";
     if (score.breakdown && score.breakdown.length > 0) {
-      findingsHtml = score.breakdown.slice(0, 3).map(b =>
-        `<div style="font-size:11px; padding:3px 0; border-bottom:1px solid #1c2333; display:flex; gap:6px;">
+      score.breakdown.slice(0, 3).forEach(b => {
+        findingsHtml += `<div style="font-size:11px; padding:3px 0; border-bottom:1px solid #1c2333; display:flex; gap:6px;">
           <span style="color:#f97316; font-weight:600; width:24px;">+${b.points}</span>
           <span>${b.reason}</span>
-        </div>`
-      ).join("");
+        </div>`;
+      });
     }
 
     resultCard.style.display = "block";
@@ -184,12 +173,12 @@ document.addEventListener("DOMContentLoaded", () => {
           <span class="result-max">/100</span>
         </div>
         <div>
-          <div class="result-level" style="color: ${color}">${level}</div>
+          <div class="result-level" style="color: ${color}">${lvl}</div>
           <div style="font-size:11px; color:#6e7681;">${score.level_label || ''}</div>
         </div>
       </div>
       ${findingsHtml}
-      ${reportId ? `<a href="${serverUrl}/report/${reportId}" target="_blank" class="result-link">View Full Report</a>` : ''}
+      ${reportId ? `<a href="${base}/report/${reportId}" target="_blank" class="result-link">View Full Report</a>` : ''}
     `;
   }
 });

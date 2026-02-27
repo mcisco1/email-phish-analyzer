@@ -1,11 +1,8 @@
-"""
-Celery background tasks for asynchronous email analysis.
-
-Usage:
-    from tasks import analyze_email_task
-    result = analyze_email_task.delay(raw_bytes, filename, user_id, s3_key)
-    # result.id is the Celery task ID — store it and poll for status
-"""
+# tasks.py — celery background tasks for async email analysis
+#
+# usage:
+#   result = analyze_email_task.delay(raw_bytes_hex, filename, user_id, s3_key)
+#   result.id  # celery task id
 
 import uuid
 import logging
@@ -19,9 +16,7 @@ import config
 
 logger = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
-# Celery app (separate from Flask — workers import this directly)
-# ---------------------------------------------------------------------------
+# celery app (separate from Flask — workers import this directly)
 celery_app = Celery(
     "phishguard",
     broker=config.CELERY_BROKER_URL,
@@ -55,7 +50,7 @@ celery_app.conf.update(
 
 
 def init_celery(app):
-    """Bind Celery to the Flask app context so tasks can access the DB."""
+    # bind celery to flask app context so tasks can hit the DB
     celery_app.conf.update(app.config)
     set_flask_app(app)
 
@@ -73,14 +68,8 @@ def init_celery(app):
 @celery_app.task(bind=True, name="phishguard.analyze_email", max_retries=2,
                  default_retry_delay=10)
 def analyze_email_task(self, raw_bytes_hex, filename, user_id=None, s3_key=None):
-    """
-    Run the full analysis pipeline in the background.
-
-    raw_bytes_hex: hex-encoded .eml content (JSON-safe)
-    filename: original filename
-    user_id: optional user ID
-    s3_key: optional S3 storage key
-    """
+    # runs the full pipeline in background
+    # raw_bytes_hex is hex-encoded .eml content (json-safe)
     from email_parser import parse_eml
     from header_analyzer import analyze_headers
     from url_analyzer import analyze_all_urls
@@ -94,8 +83,7 @@ def analyze_email_task(self, raw_bytes_hex, filename, user_id=None, s3_key=None)
     import config as task_config
 
     task_id = self.request.id
-
-    # Find the existing pending record by task_id and reuse its report_id
+    # TODO: add retry backoff for transient DB failures here
     analysis = Analysis.query.filter_by(task_id=task_id).first()
     if analysis:
         report_id = analysis.id
@@ -119,7 +107,7 @@ def analyze_email_task(self, raw_bytes_hex, filename, user_id=None, s3_key=None)
 
         url_findings = []
         att_findings = []
-
+        # parallelize url + attachment analysis since they're independent
         with ThreadPoolExecutor(max_workers=2) as executor:
             url_future = executor.submit(analyze_all_urls, body.text_content, body.html_content)
             att_future = executor.submit(analyze_all_attachments, attachments_raw)
@@ -132,7 +120,7 @@ def analyze_email_task(self, raw_bytes_hex, filename, user_id=None, s3_key=None)
         iocs = extract_iocs(headers, body, url_findings, att_findings)
         report.iocs = iocs
 
-        # --- NLP body analysis ---
+        # NLP
         nlp_result = None
         if task_config.NLP_ANALYSIS_ENABLED:
             try:
@@ -144,7 +132,7 @@ def analyze_email_task(self, raw_bytes_hex, filename, user_id=None, s3_key=None)
             except Exception:
                 logger.debug("NLP analysis failed — continuing without it")
 
-        # --- HTML similarity analysis on email body ---
+        # html similarity check
         if task_config.HTML_SIMILARITY_ENABLED and body.html_content:
             try:
                 from html_similarity import analyze_email_html
@@ -155,7 +143,7 @@ def analyze_email_task(self, raw_bytes_hex, filename, user_id=None, s3_key=None)
             except Exception:
                 logger.debug("HTML similarity (body) failed — continuing without it")
 
-        # --- ML classification ---
+        # ml classification
         ml_result = None
         if task_config.ML_CLASSIFIER_ENABLED:
             try:
@@ -165,7 +153,7 @@ def analyze_email_task(self, raw_bytes_hex, filename, user_id=None, s3_key=None)
             except Exception:
                 logger.debug("ML classification failed — continuing without it")
 
-        # --- Threat intel feed enrichment ---
+        # threat intel feeds
         threat_intel_result = None
         if task_config.THREAT_INTEL_ENABLED:
             try:
@@ -235,39 +223,29 @@ def analyze_email_task(self, raw_bytes_hex, filename, user_id=None, s3_key=None)
         raise self.retry(exc=exc)
 
 
-# ---------------------------------------------------------------------------
-# Scheduled tasks
-# ---------------------------------------------------------------------------
+# --- scheduled tasks ---
 
-# Store a reference to the Flask app for scheduled tasks
-_flask_app = None
-
+_flask_app = None  # set by init_celery
 
 def set_flask_app(app):
-    """Called from init_celery to store the Flask app reference."""
     global _flask_app
     _flask_app = app
 
 
 @celery_app.task(name="phishguard.poll_imap", ignore_result=True)
 def poll_imap_task():
-    """Poll the IMAP inbox for forwarded emails and analyze them."""
     if not getattr(config, "IMAP_ENABLED", False):
         return {"status": "disabled"}
-
     if _flask_app is None:
         logger.warning("Flask app not initialized — skipping IMAP poll")
         return {"status": "error", "reason": "no_app"}
 
     try:
         from imap_poller import poll_inbox
-        result = poll_inbox(_flask_app)
-        logger.info(
-            "IMAP poll complete: %d found, %d processed",
-            result.get("emails_found", 0),
-            result.get("emails_processed", 0),
-        )
-        return result
+        res = poll_inbox(_flask_app)
+        logger.info("IMAP poll: %d found, %d processed",
+                     res.get("emails_found", 0), res.get("emails_processed", 0))
+        return res
     except Exception:
         logger.exception("IMAP poll task failed")
         return {"status": "error"}
@@ -275,11 +253,9 @@ def poll_imap_task():
 
 @celery_app.task(name="phishguard.weekly_summary", ignore_result=True)
 def weekly_summary_task():
-    """Send weekly threat summary reports to subscribed users."""
     if _flask_app is None:
         logger.warning("Flask app not initialized — skipping weekly summary")
         return {"status": "error", "reason": "no_app"}
-
     try:
         from notifications import send_weekly_summary
         send_weekly_summary(_flask_app)

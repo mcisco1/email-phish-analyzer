@@ -1,10 +1,5 @@
-"""
-IMAP Inbox Poller — processes forwarded suspicious emails.
-
-Users forward suspicious emails to a configured mailbox (e.g., analyze@yourapp.com).
-This module polls the inbox via IMAP, extracts forwarded email content,
-runs analysis, and optionally sends a reply with results.
-"""
+# imap_poller.py - polls shared inbox for forwarded suspicious emails
+# Users forward to e.g. analyze@yourapp.com, we pick them up via IMAP
 
 import email
 import imaplib
@@ -19,12 +14,11 @@ import config
 
 logger = logging.getLogger(__name__)
 
+# TODO: handle edge case where user account is deactivated mid-poll
+
 
 def poll_inbox(app):
-    """
-    Connect to the IMAP mailbox, fetch UNSEEN messages, process forwarded
-    emails, and mark them as seen. Returns a dict with poll results.
-    """
+    # connect to IMAP, fetch UNSEEN, process forwarded emails, mark seen
     from database import db, ImapPollLog
 
     if not config.IMAP_ENABLED:
@@ -40,7 +34,6 @@ def poll_inbox(app):
 
     conn = None
     try:
-        # Connect to IMAP server
         if config.IMAP_USE_SSL:
             conn = imaplib.IMAP4_SSL(config.IMAP_HOST, config.IMAP_PORT)
         else:
@@ -49,7 +42,6 @@ def poll_inbox(app):
         conn.login(config.IMAP_USER, config.IMAP_PASS)
         conn.select(config.IMAP_FOLDER)
 
-        # Search for unseen messages
         status, msg_ids = conn.search(None, "UNSEEN")
         if status != "OK" or not msg_ids[0]:
             logger.info("IMAP poll: no new messages")
@@ -58,27 +50,27 @@ def poll_inbox(app):
 
         id_list = msg_ids[0].split()
         results["emails_found"] = len(id_list)
-        logger.info("IMAP poll: found %d unseen messages", len(id_list))
+        print(f"[imap] found {len(id_list)} unseen messages")  # debug
 
         for msg_id in id_list:
             try:
                 _process_message(conn, msg_id, app)
                 results["emails_processed"] += 1
             except Exception as exc:
-                error_msg = f"Failed to process message {msg_id}: {exc}"
-                logger.exception(error_msg)
-                results["errors"].append(error_msg)
+                err = f"Failed to process message {msg_id}: {exc}"
+                logger.exception(err)
+                results["errors"].append(err)
 
     except imaplib.IMAP4.error as exc:
-        error_msg = f"IMAP connection error: {exc}"
-        logger.exception(error_msg)
+        err = f"IMAP connection error: {exc}"
+        logger.exception(err)
         results["status"] = "error"
-        results["errors"].append(error_msg)
+        results["errors"].append(err)
     except Exception as exc:
-        error_msg = f"Unexpected error during IMAP poll: {exc}"
-        logger.exception(error_msg)
+        err = f"Unexpected error during IMAP poll: {exc}"
+        logger.exception(err)
         results["status"] = "error"
-        results["errors"].append(error_msg)
+        results["errors"].append(err)
     finally:
         if conn:
             try:
@@ -99,13 +91,14 @@ def _process_message(conn, msg_id, app):
     if status != "OK":
         raise RuntimeError(f"Failed to fetch message {msg_id}")
 
-    raw_email = msg_data[0][1]
-    msg = email.message_from_bytes(raw_email)
+    raw = msg_data[0][1]
+    msg = email.message_from_bytes(raw)
 
     sender_email = email.utils.parseaddr(msg.get("From", ""))[1].lower()
     subject = msg.get("Subject", "(no subject)")
 
     logger.info("Processing forwarded email from %s: %s", sender_email, subject)
+    # print(f"raw msg size: {len(raw)}")  # was useful for debugging large attachments
 
     # Extract the forwarded email content
     forwarded_bytes = extract_forwarded_email(msg)
@@ -212,34 +205,30 @@ def _process_message(conn, msg_id, app):
 
 
 def extract_forwarded_email(msg):
-    """
-    Extract the forwarded email content from a message.
-    Handles two patterns:
-    1. message/rfc822 attachment (standard forward)
-    2. Inline-forwarded text (best-effort extraction)
-    """
-    # Pattern 1: Look for message/rfc822 attachment
+    # tries 3 patterns to get the actual forwarded content:
+    # 1) message/rfc822 attachment  2) .eml attachment  3) inline fallback
+
+    # message/rfc822 attachment (standard forward)
     if msg.is_multipart():
         for part in msg.walk():
-            content_type = part.get_content_type()
-            if content_type == "message/rfc822":
+            ct = part.get_content_type()
+            if ct == "message/rfc822":
                 payload = part.get_payload()
                 if isinstance(payload, list) and len(payload) > 0:
                     return payload[0].as_bytes()
                 elif hasattr(payload, "as_bytes"):
                     return payload.as_bytes()
 
-    # Pattern 2: Look for .eml attachment
+    # .eml file attachment
     if msg.is_multipart():
         for part in msg.walk():
-            filename = part.get_filename()
-            if filename and filename.lower().endswith(".eml"):
+            fn = part.get_filename()
+            if fn and fn.lower().endswith(".eml"):
                 payload = part.get_payload(decode=True)
                 if payload:
                     return payload
 
-    # Pattern 3: Inline forwarded — use the entire message as the email to analyze
-    # This is a fallback: treat the wrapper message itself as the sample
+    # fallback: treat the wrapper itself as the sample
     try:
         return msg.as_bytes()
     except Exception:
@@ -247,40 +236,38 @@ def extract_forwarded_email(msg):
 
 
 def attribute_to_user(sender_email, app):
-    """Match the sender email to an existing PhishGuard user."""
     from database import User
 
     with app.app_context():
-        user = User.query.filter_by(email=sender_email, is_active=True).first()
-        if user:
-            return user
-
-        # Fallback: find any admin user to attribute the analysis to
-        admin = User.query.filter_by(role="admin", is_active=True).first()
-        return admin
+        usr = User.query.filter_by(email=sender_email, is_active=True).first()
+        if usr:
+            return usr
+        # fallback to any admin account
+        return User.query.filter_by(role="admin", is_active=True).first()
 
 
 def send_analysis_reply(to_email, report_dict):
-    """Send an email reply with the analysis results."""
+    """Send email reply with analysis results back to the forwarder."""
     if not config.SMTP_ENABLED:
         return False
 
     score = report_dict.get("score", {})
-    threat_level = score.get("level", "clean")
+    lvl = score.get("level", "clean")
     threat_score = score.get("total", 0)
     level_color = score.get("level_color", "#6e7681")
     filename = report_dict.get("filename", "unknown")
     report_id = report_dict.get("report_id", "")
 
-    # Top findings
+    # top findings
     findings = score.get("breakdown", [])[:5]
     findings_html = ""
     if findings:
-        rows = "".join(
-            f'<tr><td style="padding:4px 8px; font-size:12px; color:#c9d1d9; border-bottom:1px solid #1c2333;">{f.get("reason", "")}</td>'
-            f'<td style="padding:4px 8px; font-size:12px; color:#6e7681; border-bottom:1px solid #1c2333;">+{f.get("points", 0)}</td></tr>'
-            for f in findings
-        )
+        rows = ""
+        for f in findings:
+            rows += (
+                f'<tr><td style="padding:4px 8px; font-size:12px; color:#c9d1d9; border-bottom:1px solid #1c2333;">{f.get("reason", "")}</td>'
+                f'<td style="padding:4px 8px; font-size:12px; color:#6e7681; border-bottom:1px solid #1c2333;">+{f.get("points", 0)}</td></tr>'
+            )
         findings_html = f"""
         <div style="margin-top:16px;">
             <div style="font-size:11px; color:#6e7681; text-transform:uppercase; letter-spacing:.5px; margin-bottom:8px; font-weight:700;">Key Findings</div>
@@ -303,7 +290,7 @@ def send_analysis_reply(to_email, report_dict):
                     </td>
                     <td style="padding-left:16px;">
                         <div style="font-size:14px; font-weight:600; color:#c9d1d9;">{filename}</div>
-                        <div style="display:inline-block; padding:2px 8px; border-radius:3px; font-size:10px; font-weight:700; text-transform:uppercase; background:{level_color}20; color:{level_color}; margin-top:6px;">{threat_level}</div>
+                        <div style="display:inline-block; padding:2px 8px; border-radius:3px; font-size:10px; font-weight:700; text-transform:uppercase; background:{level_color}20; color:{level_color}; margin-top:6px;">{lvl}</div>
                     </td>
                 </tr>
             </table>
@@ -318,7 +305,7 @@ def send_analysis_reply(to_email, report_dict):
 
     try:
         msg = MIMEMultipart("alternative")
-        msg["Subject"] = f"[PhishGuard] Analysis: {threat_level.upper()} - {filename}"
+        msg["Subject"] = f"[PhishGuard] Analysis: {lvl.upper()} - {filename}"
         msg["From"] = config.SMTP_FROM
         msg["To"] = to_email
         msg.attach(MIMEText(html, "html"))
@@ -342,7 +329,7 @@ def send_analysis_reply(to_email, report_dict):
 
 
 def test_connection():
-    """Test IMAP connectivity. Returns a dict with status and details."""
+    """Quick connectivity check — returns dict with status."""
     if not config.IMAP_ENABLED:
         return {"success": False, "error": "IMAP is not configured"}
 
@@ -351,17 +338,14 @@ def test_connection():
             conn = imaplib.IMAP4_SSL(config.IMAP_HOST, config.IMAP_PORT)
         else:
             conn = imaplib.IMAP4(config.IMAP_HOST, config.IMAP_PORT)
-
         conn.login(config.IMAP_USER, config.IMAP_PASS)
-        status, folders = conn.list()
+        _, folders = conn.list()
         conn.select(config.IMAP_FOLDER)
 
-        # Count messages
-        status, msg_count = conn.search(None, "ALL")
-        total = len(msg_count[0].split()) if msg_count[0] else 0
-
-        status, unseen = conn.search(None, "UNSEEN")
-        unseen_count = len(unseen[0].split()) if unseen[0] else 0
+        _, msg_count = conn.search(None, "ALL")
+        n_total = len(msg_count[0].split()) if msg_count[0] else 0
+        _, unseen = conn.search(None, "UNSEEN")
+        n_unseen = len(unseen[0].split()) if unseen[0] else 0
 
         conn.close()
         conn.logout()
@@ -370,26 +354,24 @@ def test_connection():
             "success": True,
             "host": config.IMAP_HOST,
             "folder": config.IMAP_FOLDER,
-            "total_messages": total,
-            "unseen_messages": unseen_count,
+            "total_messages": n_total,
+            "unseen_messages": n_unseen,
         }
     except Exception as exc:
         return {"success": False, "error": str(exc)}
 
 
 def _log_poll(app, results):
-    """Save poll results to the database."""
     from database import db, ImapPollLog
-
     try:
         with app.app_context():
-            log = ImapPollLog(
+            entry = ImapPollLog(
                 emails_found=results["emails_found"],
                 emails_processed=results["emails_processed"],
                 errors="; ".join(results["errors"]) if results["errors"] else None,
                 status=results["status"],
             )
-            db.session.add(log)
+            db.session.add(entry)
             db.session.commit()
     except Exception:
         logger.exception("Failed to log IMAP poll results")

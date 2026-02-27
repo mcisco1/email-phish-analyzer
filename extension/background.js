@@ -1,10 +1,6 @@
-/**
- * PhishGuard Browser Extension — Background Service Worker
- *
- * Creates context menu items and handles analysis requests.
- */
+// PhishGuard background service worker
+// handles context menu + analysis requests
 
-// Create context menu on install
 chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus.create({
     id: "phishguard-analyze",
@@ -13,7 +9,6 @@ chrome.runtime.onInstalled.addListener(() => {
   });
 });
 
-// Handle context menu clicks
 chrome.contextMenus.onClicked.addListener((info, tab) => {
   if (info.menuItemId === "phishguard-analyze") {
     // Send message to content script to extract email
@@ -36,7 +31,7 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
   }
 });
 
-// Handle messages from popup
+/* message handler — popup + content script comms */
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === "analyze") {
     performAnalysis(message.content, message.filename)
@@ -66,12 +61,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 async function analyzeContent(content, tabId) {
   try {
     const result = await performAnalysis(content, "browser-email.eml");
-
-    // Update badge with threat level
+    console.log("[pg] analysis result:", result.score?.level, result.score?.total);
     updateBadge(result);
 
-    // Show browser notification for high/critical threats
     const level = result.score ? result.score.level : "clean";
+    // browser notification for serious threats
     if (level === "critical" || level === "high") {
       chrome.notifications.create({
         type: "basic",
@@ -82,10 +76,7 @@ async function analyzeContent(content, tabId) {
       });
     }
 
-    // Store in recent results
     storeRecentResult(result);
-
-    // Send result to content script to display
     chrome.tabs.sendMessage(tabId, {
       action: "showResult",
       data: result
@@ -99,9 +90,8 @@ async function analyzeContent(content, tabId) {
 }
 
 function updateBadge(result) {
-  const level = result.score ? result.score.level : "clean";
+  const lvl = result.score ? result.score.level : "clean";
   const total = result.score ? result.score.total : 0;
-
   const badgeColors = {
     critical: "#ef4444",
     high: "#f97316",
@@ -110,10 +100,9 @@ function updateBadge(result) {
     clean: "#10b981"
   };
 
-  chrome.action.setBadgeBackgroundColor({ color: badgeColors[level] || "#6b7280" });
+  chrome.action.setBadgeBackgroundColor({ color: badgeColors[lvl] || "#6b7280" });
   chrome.action.setBadgeText({ text: String(total) });
-
-  // Clear badge after 30 seconds
+  // clear after 30s
   setTimeout(() => {
     chrome.action.setBadgeText({ text: "" });
   }, 30000);
@@ -128,17 +117,17 @@ async function storeRecentResult(result) {
     level: result.score ? result.score.level : "clean",
     timestamp: Date.now()
   });
-  // Keep only last 10
   await chrome.storage.local.set({ recentResults: recentResults.slice(0, 10) });
 }
 
+
 async function performAnalysis(content, filename) {
-  const settings = await new Promise((resolve) => {
+  const cfg = await new Promise((resolve) => {
     chrome.storage.sync.get(["serverUrl", "apiKey"], resolve);
   });
 
-  const serverUrl = settings.serverUrl || "http://127.0.0.1:5000";
-  const apiKey = settings.apiKey || "";
+  const serverUrl = cfg.serverUrl || "http://127.0.0.1:5000";
+  const apiKey = cfg.apiKey || "";
 
   if (!apiKey) {
     throw new Error("API key not configured. Open PhishGuard extension settings.");

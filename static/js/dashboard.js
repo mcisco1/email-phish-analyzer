@@ -1,9 +1,4 @@
-/**
- * PhishGuard Dashboard Charts
- *
- * Area chart with gradient fills for threat trends
- * and doughnut chart for threat distribution.
- */
+// dashboard.js — trend area chart + threat distribution doughnut
 (function () {
     'use strict';
 
@@ -11,30 +6,34 @@
     var trendData = window.__pgDashboard.trendData;
     var period = window.__pgDashboard.period || 30;
 
-    // --- Build trend data ---
+    // build day-keyed lookup
     var dayMap = {};
-    trendData.forEach(function (row) {
+    for (var i = 0; i < trendData.length; i++) {
+        var row = trendData[i];
         if (!dayMap[row.day]) dayMap[row.day] = { critical: 0, high: 0, medium: 0, low: 0, clean: 0 };
         dayMap[row.day][row.threat_level] = row.cnt;
-    });
+    }
 
     var days = Object.keys(dayMap).sort();
-    var critData = days.map(function (d) { return dayMap[d].critical || 0; });
-    var highData = days.map(function (d) { return dayMap[d].high || 0; });
-    var medData = days.map(function (d) { return dayMap[d].medium || 0; });
-    var lowCleanData = days.map(function (d) { return (dayMap[d].low || 0) + (dayMap[d].clean || 0); });
+    var critData = [], highData = [], medData = [], lowCleanData = [];
+    var dayLabels = [];
 
-    var dayLabels = days.map(function (d) {
-        var parts = d.split('-');
-        return parts[1] + '/' + parts[2];
+    days.forEach(function (d) {
+        critData.push(dayMap[d].critical || 0);
+        highData.push(dayMap[d].high || 0);
+        medData.push(dayMap[d].medium || 0);
+        lowCleanData.push((dayMap[d].low || 0) + (dayMap[d].clean || 0));
+        var p = d.split('-');
+        dayLabels.push(p[1] + '/' + p[2]);
     });
 
-    // --- Trend Area Chart ---
+    // console.log('[dashboard] days:', days.length, 'period:', period);
+
     var trendCtx = document.getElementById('trendChart');
     if (trendCtx) {
         var ctx = trendCtx.getContext('2d');
 
-        // Create gradients
+        /* gradient fills for area chart */
         var critGrad = ctx.createLinearGradient(0, 0, 0, 260);
         critGrad.addColorStop(0, 'rgba(220,38,38,0.45)');
         critGrad.addColorStop(1, 'rgba(220,38,38,0.02)');
@@ -141,7 +140,7 @@
         });
     }
 
-    // --- Threat Distribution Doughnut ---
+    // doughnut chart
     var pieCtx = document.getElementById('threatPieChart');
     if (pieCtx) {
         new Chart(pieCtx.getContext('2d'), {

@@ -1,9 +1,8 @@
-"""
-Notification service — handles email, Slack, and in-app notifications.
-
-Sends alerts when analyses find critical/high threats.
-Generates weekly summary reports.
-"""
+# notifications.py
+# email, slack, and in-app notification dispatch
+#
+# HACK: the weekly summary query is kinda slow for large orgs,
+# should probably be moved to a materialized view eventually
 
 import json
 import logging
@@ -18,11 +17,9 @@ logger = logging.getLogger(__name__)
 
 
 def send_email_alert(to_email, subject, html_body):
-    """Send an email notification via SMTP."""
     if not config.SMTP_ENABLED:
         logger.debug("SMTP not configured — skipping email to %s", to_email)
         return False
-
     try:
         msg = MIMEMultipart("alternative")
         msg["Subject"] = subject
@@ -31,16 +28,15 @@ def send_email_alert(to_email, subject, html_body):
         msg.attach(MIMEText(html_body, "html"))
 
         if config.SMTP_USE_TLS:
-            server = smtplib.SMTP(config.SMTP_HOST, config.SMTP_PORT, timeout=10)
-            server.starttls()
+            srv = smtplib.SMTP(config.SMTP_HOST, config.SMTP_PORT, timeout=10)
+            srv.starttls()
         else:
-            server = smtplib.SMTP_SSL(config.SMTP_HOST, config.SMTP_PORT, timeout=10)
-
+            srv = smtplib.SMTP_SSL(config.SMTP_HOST, config.SMTP_PORT, timeout=10)
         if config.SMTP_USER and config.SMTP_PASS:
-            server.login(config.SMTP_USER, config.SMTP_PASS)
+            srv.login(config.SMTP_USER, config.SMTP_PASS)
 
-        server.sendmail(config.SMTP_FROM, [to_email], msg.as_string())
-        server.quit()
+        srv.sendmail(config.SMTP_FROM, [to_email], msg.as_string())
+        srv.quit()
         logger.info("Email alert sent to %s: %s", to_email, subject)
         return True
     except Exception:
@@ -49,33 +45,27 @@ def send_email_alert(to_email, subject, html_body):
 
 
 def send_slack_alert(webhook_url, message_text, blocks=None):
-    """Send a Slack notification via webhook."""
+    """Post to Slack via incoming webhook."""
     if not webhook_url:
         return False
-
     try:
         import requests
         payload = {"text": message_text}
         if blocks:
             payload["blocks"] = blocks
-
         resp = requests.post(webhook_url, json=payload, timeout=10)
         if resp.status_code == 200:
             logger.info("Slack alert sent")
             return True
-        else:
-            logger.warning("Slack webhook returned %s: %s", resp.status_code, resp.text)
-            return False
+        logger.warning("Slack webhook returned %s: %s", resp.status_code, resp.text)
+        return False
     except Exception:
         logger.exception("Failed to send Slack alert")
         return False
 
 
 def notify_on_analysis(analysis_record, report_dict):
-    """
-    Check notification preferences and send alerts for a completed analysis.
-    Called after an analysis finishes.
-    """
+    # check prefs and dispatch alerts after analysis completes
     from database import (
         db, User, NotificationPreference, create_notification,
     )
@@ -84,6 +74,7 @@ def notify_on_analysis(analysis_record, report_dict):
     threat_score = report_dict.get("score", {}).get("total", 0)
     filename = report_dict.get("filename", "unknown")
     report_id = report_dict.get("report_id", "")
+    print(f"[notify] {filename} -> {threat_level} ({threat_score})")  # debug
 
     if threat_level not in ("critical", "high", "medium"):
         return
@@ -167,7 +158,10 @@ def notify_on_analysis(analysis_record, report_dict):
 
 
 def send_weekly_summary(app):
-    """Generate and send weekly summary reports to subscribed users."""
+    """Generate and send weekly summary reports to subscribed users.
+    This function is intentionally longer than it probably should be — the email
+    building, stats gathering, and notification creation could be split out but
+    it works and there are bigger fish to fry right now."""
     from database import (
         db, User, NotificationPreference, Analysis,
         create_notification, get_stats,
@@ -176,6 +170,7 @@ def send_weekly_summary(app):
 
     with app.app_context():
         week_ago = time.time() - (7 * 86400)
+        # prev_week_ago = time.time() - (14 * 86400)  # for trend comparison
 
         users = User.query.filter_by(is_active=True).all()
         for user in users:
